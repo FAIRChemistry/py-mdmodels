@@ -21,13 +21,12 @@
 #  -----------------------------------------------------------------------------
 
 import pathlib
-import sys
 import types
 from enum import Enum
 
 import httpx
-import rich
 import validators
+from dotted_dict import DottedDict
 from mdmodels_core import DataModel as RSDataModel
 from pydantic_xml import create_model, attr, element
 
@@ -41,6 +40,7 @@ TYPE_MAPPING = {
     "float": float,
     "boolean": bool,
     "number": float,
+    "date": str,
 }
 
 
@@ -61,15 +61,15 @@ def build_module(
     dm = init_data_model(path)
     config = dm.model.config
 
-    py_types, py_enums = dict(), dict()
+    module = DottedDict()
 
     for rs_type in dm.model.objects:
-        build_type(dm, rs_type, py_types, py_enums)
+        build_type(dm, rs_type, module, module)
 
     if dm.model.name:
         mod_name = dm.model.name
 
-    return create_module(py_enums, py_types, dm, mod_name)
+    return module
 
 
 def init_data_model(path):
@@ -91,57 +91,6 @@ def init_data_model(path):
 
         assert path.exists(), f"Path '{path}' does not exist"
         return RSDataModel.from_markdown(str(path))
-
-
-def create_module(
-    py_enums: dict,
-    py_types: dict,
-    dm: RSDataModel,
-    mod_name: str | None = None,
-):
-    """
-    Create a module for the data model.
-
-    Args:
-        py_enums (dict): Dictionary of Python enums.
-        py_types (dict): Dictionary of Python units.
-        dm (RSDataModel): The data model.
-        mod_name (str, optional): The name of the module. Defaults to None.
-
-    Returns:
-        types.ModuleType: A module containing the generated data model.
-    """
-    module = sys.modules[mod_name] = types.ModuleType(mod_name)
-    for name, py_type in py_types.items():
-        setattr(module, name, py_type)
-    for name, py_enum in py_enums.items():
-        setattr(module, name, py_enum)
-
-    module.info = lambda: _create_doc(dm, py_enums, py_types)
-
-    return module
-
-
-def _create_doc(dm, py_enums, py_types):
-    """
-    Create a documentation string for the data model.
-
-    Args:
-        dm (RSDataModel): The data model.
-        py_enums (dict): Dictionary of Python enums.
-        py_types (dict): Dictionary of Python units.
-    """
-    repr_str = ""
-    repr_str += f"Data Model: {dm.model.name}\n"
-    repr_str += "Objects:\n"
-    for name, py_type in py_types.items():
-        repr_str += f"  {name}\n"
-    if py_enums:
-        repr_str += "\nEnums:\n"
-        for name, py_enum in py_enums.items():
-            repr_str += f"  {name}\n"
-
-    rich.print(repr_str)
 
 
 def build_type(
@@ -223,7 +172,7 @@ def get_dtype(
     elif sub_obj := next((o for o in dm.model.objects if o.name == dtype), None):
         return build_type(dm, sub_obj, py_types)
     elif enum_obj := next((o for o in dm.model.enums if o.name == dtype), None):
-        return build_enum(enum_obj, py_enums)
+        return build_enum(enum_obj, py_types)
     else:
         raise ValueError(f"Unknown type {dtype}")
 
