@@ -22,19 +22,20 @@
 from typing import Annotated
 
 from pydantic import (
-    AfterValidator,
     PlainSerializer,
     WithJsonSchema,
+    BeforeValidator,
 )
 
 from .converter import convert_unit
+from .unit_definition import UnitDefinition
 
 UnitDefinitionAnnot = Annotated[
-    str,
-    AfterValidator(convert_unit),
+    UnitDefinition,
+    BeforeValidator(convert_unit),
     PlainSerializer(
         lambda unit: unit.model_dump(),
-        return_type=dict,
+        return_type=str,
     ),
     WithJsonSchema({"type": "string"}, mode="serialization"),
 ]
