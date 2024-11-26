@@ -159,13 +159,18 @@ class DataModel(BaseXmlModel):
             print(f"Could not find data using JSON path: {json_path}")
             return None
 
-    def xml(self, encoding: str = "unicode") -> str | bytes:
+    def xml(
+        self,
+        encoding: str = "unicode",
+        skip_empty: bool = True,
+    ) -> str | bytes:
         """
         Converts the object to an XML string.
 
         Args:
             encoding (str, optional): The encoding to use. If set to "bytes", will return a bytes string.
                                       Defaults to "unicode".
+            skip_empty (bool, optional): Whether to skip empty fields. Defaults to True.
 
         Returns:
             str | bytes: The XML representation of the object.
@@ -173,6 +178,6 @@ class DataModel(BaseXmlModel):
         if encoding == "bytes":
             return self.to_xml()
 
-        raw_xml = self.to_xml(encoding=None)
+        raw_xml = self.to_xml(encoding=None, skip_empty=skip_empty)
         parsed_xml = minidom.parseString(raw_xml)
         return parsed_xml.toprettyxml(indent="  ")
