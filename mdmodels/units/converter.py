@@ -20,6 +20,7 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import json
+import math
 from json import JSONDecodeError
 
 import astropy.units as u
@@ -71,13 +72,16 @@ def _process_composite_unit(unit, unit_def):
     if unit.scale != 1.0:
         _dimensionless_unit(
             unit_def=unit_def,
-            scale=unit.scale,
+            multiplier=unit.scale,
         )
 
     if not bases:
         _dimensionless_unit(unit_def)
     for base, exponent in zip(bases, unit.powers):
-        _process_base_unit(unit_def, base, exponent)
+        if len(base.decompose().bases) > 1:
+            _process_composite_unit(base.decompose(), unit_def)
+        else:
+            _process_base_unit(unit_def, base, exponent)
 
 
 def _dimensionless_unit(
@@ -104,7 +108,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UnitType.LITRE,
             exponent=exponent,
-            scale=scale,
+            scale=int(scale),
             multiplier=1.0,
         )
     elif base.is_equivalent(u.gram):
@@ -120,7 +124,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UNIT_MAPPING[base.bases[0].to_string()],
             exponent=exponent,
-            scale=base.scale,
+            scale=int(math.log10(base.scale)),
             multiplier=1.0,
         )
     elif isinstance(base, Unit):
@@ -143,7 +147,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UNIT_MAPPING[base.bases[0].to_string()],
             exponent=exponent,
-            scale=base.scale,
+            scale=int(math.log10(base.scale)),
             multiplier=1.0,
         )
     else:
