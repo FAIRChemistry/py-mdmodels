@@ -57,6 +57,8 @@ def _convert_unit_string(unit_string: str):
 
     if isinstance(unit, CompositeUnit):
         _process_composite_unit(unit, unit_def)
+    elif len(unit.decompose().bases) > 1:
+        _process_composite_unit(unit.decompose(), unit_def)
     else:
         _process_base_unit(unit_def, unit, 1)
 
@@ -65,20 +67,30 @@ def _convert_unit_string(unit_string: str):
 
 def _process_composite_unit(unit, unit_def):
     bases = unit.bases
+
+    if unit.scale != 1.0:
+        _dimensionless_unit(
+            unit_def=unit_def,
+            scale=unit.scale,
+        )
+
     if not bases:
         _dimensionless_unit(unit_def)
     for base, exponent in zip(bases, unit.powers):
         _process_base_unit(unit_def, base, exponent)
 
 
-def _dimensionless_unit(unit_def):
-    unit_def.name = "dimensionless"
-    unit_def.id = "dimensionless"
+def _dimensionless_unit(
+    unit_def: UnitDefinition,
+    scale: float = 1.0,
+    multiplier: float = 1.0,
+    exponent: int = 1,
+):
     unit_def.add_to_base_units(
         kind=UnitType.DIMENSIONLESS,
-        exponent=1,
-        scale=1,
-        multiplier=1.0,
+        exponent=exponent,
+        scale=scale,
+        multiplier=multiplier,
     )
 
 
