@@ -1,12 +1,34 @@
-from __future__ import annotations
+#  -----------------------------------------------------------------------------
+#   Copyright (c) 2024 Jan Range
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a copy
+#   of this software and associated documentation files (the "Software"), to deal
+#   in the Software without restriction, including without limitation the rights
+#   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#   copies of the Software, and to permit persons to whom the Software is
+#   furnished to do so, subject to the following conditions:
+#  #
+#   The above copyright notice and this permission notice shall be included in
+#   all copies or substantial portions of the Software.
+#  #
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#   THE SOFTWARE.
+#  -----------------------------------------------------------------------------
 
+import asyncio
 import types
 from pathlib import Path
-from typing import get_args
+from typing import get_args, Any
+from xml.dom import minidom
 
+import jsonpath
 from bigtree import nested_dict_to_tree
 from pydantic_xml import BaseXmlModel
-from typing_inspect import get_origin
 
 
 class DataModel(BaseXmlModel):
@@ -118,3 +140,39 @@ class DataModel(BaseXmlModel):
             url = f"https://raw.githubusercontent.com/{repo}/{spec_path}"
 
         return build_module(url)
+
+    def find(self, json_path: str) -> Any | None:
+        """
+        Find the value of a field using a JSON path.
+
+        Args:
+            json_path (str): The JSON path to the field.
+
+        Returns:
+            Any: The value of the field.
+        """
+
+        try:
+            result = asyncio.run(jsonpath.findall_async(json_path, self.model_dump()))
+            return result
+        except StopIteration:
+            print(f"Could not find data using JSON path: {json_path}")
+            return None
+
+    def xml(self, encoding: str = "unicode") -> str | bytes:
+        """
+        Converts the object to an XML string.
+
+        Args:
+            encoding (str, optional): The encoding to use. If set to "bytes", will return a bytes string.
+                                      Defaults to "unicode".
+
+        Returns:
+            str | bytes: The XML representation of the object.
+        """
+        if encoding == "bytes":
+            return self.to_xml()
+
+        raw_xml = self.to_xml(encoding=None)
+        parsed_xml = minidom.parseString(raw_xml)
+        return parsed_xml.toprettyxml(indent="  ")

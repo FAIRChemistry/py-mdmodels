@@ -19,14 +19,40 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-import nest_asyncio
-from mdmodels_core import Templates  # noqa
+from .unit_definition import UnitType
 
-from .datamodel import DataModel
-
-nest_asyncio.apply()
-
-__all__ = [
-    "DataModel",
-    "Templates",
-]
+UNIT_MAPPING = {
+    "s": UnitType.SECOND,
+    "m": UnitType.METRE,
+    "kg": UnitType.KILOGRAM,
+    "g": UnitType.GRAM,
+    "mol": UnitType.MOLE,
+    "K": UnitType.KELVIN,
+    "A": UnitType.AMPERE,
+    "cd": UnitType.CANDELA,
+    "rad": UnitType.RADIAN,
+    "sr": UnitType.STERADIAN,
+    "Hz": UnitType.HERTZ,
+    "N": UnitType.NEWTON,
+    "Pa": UnitType.PASCAL,
+    "J": UnitType.JOULE,
+    "W": UnitType.WATT,
+    "C": UnitType.COULOMB,
+    "V": UnitType.VOLT,
+    "F": UnitType.FARAD,
+    "Ω": UnitType.OHM,
+    "S": UnitType.SIEMENS,
+    "Wb": UnitType.WEBER,
+    "T": UnitType.TESLA,
+    "H": UnitType.HENRY,
+    "lm": UnitType.LUMEN,
+    "lx": UnitType.LUX,
+    "Bq": UnitType.BECQUEREL,
+    "Gy": UnitType.GRAY,
+    "Sv": UnitType.SIEVERT,
+    "kat": UnitType.KATAL,
+    "item": UnitType.ITEM,
+    "L": UnitType.LITRE,
+    "°C": UnitType.CELSIUS,
+    "deg_C": UnitType.CELSIUS,
+}

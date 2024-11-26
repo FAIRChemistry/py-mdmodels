@@ -19,14 +19,3 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-import nest_asyncio
-from mdmodels_core import Templates  # noqa
-
-from .datamodel import DataModel
-
-nest_asyncio.apply()
-
-__all__ = [
-    "DataModel",
-    "Templates",
-]

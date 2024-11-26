@@ -1,3 +1,25 @@
+#  -----------------------------------------------------------------------------
+#   Copyright (c) 2024 Jan Range
+#
+#   Permission is hereby granted, free of charge, to any person obtaining a copy
+#   of this software and associated documentation files (the "Software"), to deal
+#   in the Software without restriction, including without limitation the rights
+#   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#   copies of the Software, and to permit persons to whom the Software is
+#   furnished to do so, subject to the following conditions:
+#  #
+#   The above copyright notice and this permission notice shall be included in
+#   all copies or substantial portions of the Software.
+#  #
+#   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+#   THE SOFTWARE.
+#  -----------------------------------------------------------------------------
+
 import pathlib
 import sys
 import types
@@ -10,8 +32,9 @@ from mdmodels_core import DataModel as RSDataModel
 from pydantic_xml import create_model, attr, element
 
 from mdmodels.datamodel import DataModel
+from mdmodels.units.annotation import UnitDefinitionAnnot
 
-# Mapping of string type names to Python types
+# Mapping of string type names to Python units
 TYPE_MAPPING = {
     "string": str,
     "integer": int,
@@ -22,8 +45,8 @@ TYPE_MAPPING = {
 
 
 def build_module(
-        path: pathlib.Path | str,
-        mod_name: str = "model",
+    path: pathlib.Path | str,
+    mod_name: str = "model",
 ):
     """
     Create a data model module from a markdown file.
@@ -71,17 +94,17 @@ def init_data_model(path):
 
 
 def create_module(
-        py_enums: dict,
-        py_types: dict,
-        dm: RSDataModel,
-        mod_name: str | None = None,
+    py_enums: dict,
+    py_types: dict,
+    dm: RSDataModel,
+    mod_name: str | None = None,
 ):
     """
     Create a module for the data model.
 
     Args:
         py_enums (dict): Dictionary of Python enums.
-        py_types (dict): Dictionary of Python types.
+        py_types (dict): Dictionary of Python units.
         dm (RSDataModel): The data model.
         mod_name (str, optional): The name of the module. Defaults to None.
 
@@ -106,7 +129,7 @@ def _create_doc(dm, py_enums, py_types):
     Args:
         dm (RSDataModel): The data model.
         py_enums (dict): Dictionary of Python enums.
-        py_types (dict): Dictionary of Python types.
+        py_types (dict): Dictionary of Python units.
     """
     repr_str = ""
     repr_str += f"Data Model: {dm.model.name}\n"
@@ -122,10 +145,10 @@ def _create_doc(dm, py_enums, py_types):
 
 
 def build_type(
-        dm: RSDataModel,
-        rs_type,
-        py_types: dict,
-        py_enums: dict | None = None,
+    dm: RSDataModel,
+    rs_type,
+    py_types: dict,
+    py_enums: dict | None = None,
 ):
     """
     Build a Python type from a data model type.
@@ -133,7 +156,7 @@ def build_type(
     Args:
         dm (RSDataModel): The data model.
         rs_type: The data model type.
-        py_types (dict): Dictionary of Python types.
+        py_types (dict): Dictionary of Python units.
         py_enums (dict, optional): Dictionary of Python enums. Defaults to None.
     """
     if py_enums is None:
@@ -172,10 +195,10 @@ def build_type(
 
 
 def get_dtype(
-        attribute,
-        dm: RSDataModel,
-        py_types: dict,
-        py_enums: dict,
+    attribute,
+    dm: RSDataModel,
+    py_types: dict,
+    py_enums: dict,
 ):
     """
     Get the Python data type for an attribute.
@@ -183,7 +206,7 @@ def get_dtype(
     Args:
         attribute: The attribute.
         dm (RSDataModel): The data model.
-        py_types (dict): Dictionary of Python types.
+        py_types (dict): Dictionary of Python units.
         py_enums (dict): Dictionary of Python enums.
 
     Returns:
@@ -193,6 +216,8 @@ def get_dtype(
 
     if dtype in TYPE_MAPPING:
         return TYPE_MAPPING[dtype]
+    elif dtype == "UnitDefinition":
+        return UnitDefinitionAnnot
     elif dtype in py_types:
         return py_types[dtype]
     elif sub_obj := next((o for o in dm.model.objects if o.name == dtype), None):
@@ -204,8 +229,8 @@ def get_dtype(
 
 
 def build_enum(
-        enum_obj,
-        py_enums: dict,
+    enum_obj,
+    py_enums: dict,
 ):
     """
     Create a Python Enum from a data model Enum object.

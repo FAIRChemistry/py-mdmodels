@@ -19,14 +19,22 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-import nest_asyncio
-from mdmodels_core import Templates  # noqa
+from typing import Annotated
 
-from .datamodel import DataModel
+from pydantic import (
+    AfterValidator,
+    PlainSerializer,
+    WithJsonSchema,
+)
 
-nest_asyncio.apply()
+from .converter import convert_unit
 
-__all__ = [
-    "DataModel",
-    "Templates",
+UnitDefinitionAnnot = Annotated[
+    str,
+    AfterValidator(convert_unit),
+    PlainSerializer(
+        lambda unit: unit.model_dump(),
+        return_type=dict,
+    ),
+    WithJsonSchema({"type": "string"}, mode="serialization"),
 ]

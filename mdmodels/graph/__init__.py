@@ -19,14 +19,27 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-import nest_asyncio
-from mdmodels_core import Templates  # noqa
+from neomodel import config
 
-from .datamodel import DataModel
+from .create import generate_neomodel  # noqa: F401
 
-nest_asyncio.apply()
 
-__all__ = [
-    "DataModel",
-    "Templates",
-]
+def connect_to_neo4j(
+    user: str,
+    password: str,
+    host: str,
+    port: int,
+):
+    """
+    Connect to a Neo4j database using the provided credentials and host information.
+
+    Args:
+        user (str): The username for the Neo4j database.
+        password (str): The password for the Neo4j database.
+        host (str): The host address of the Neo4j database.
+        port (int): The port number on which the Neo4j database is running.
+
+    Returns:
+        None
+    """
+    config.DATABASE_URL = f"bolt://{user}:{password}@{host}:{port}"
