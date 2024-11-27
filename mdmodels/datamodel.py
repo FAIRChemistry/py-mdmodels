@@ -108,7 +108,7 @@ class DataModel(BaseXmlModel):
         cls,
         repo: str,
         spec_path: str,
-        branch: str | None,
+        branch: str | None = None,
         tag: str | None = None,
     ) -> types.ModuleType:
         """
