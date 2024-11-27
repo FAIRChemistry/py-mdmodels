@@ -39,6 +39,7 @@ CUSTOM_UNITS = [
     u.def_unit("absorbance", u.dimensionless_unscaled),
     u.def_unit("M", u.mol / u.L, prefixes=True),
     u.def_unit("kDa", 1e3 * u.Da),
+    u.def_unit("dimensionless", u.dimensionless_unscaled),
 ]
 
 u.add_enabled_units(CUSTOM_UNITS)

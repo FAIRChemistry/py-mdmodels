@@ -55,4 +55,5 @@ UNIT_MAPPING = {
     "L": UnitType.LITRE,
     "°C": UnitType.CELSIUS,
     "deg_C": UnitType.CELSIUS,
+    "dimensionless": UnitType.DIMENSIONLESS,
 }
