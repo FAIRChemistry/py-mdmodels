@@ -35,6 +35,14 @@ from astropy.units import (
 from .mappings import UNIT_MAPPING
 from .unit_definition import UnitType, UnitDefinition
 
+CUSTOM_UNITS = [
+    u.def_unit("absorbance", u.dimensionless_unscaled),
+    u.def_unit("M", u.mol / u.L, prefixes=True),
+    u.def_unit("kDa", 1e3 * u.Da),
+]
+
+u.add_enabled_units(CUSTOM_UNITS)
+
 
 def convert_unit(unit: str):
     if isinstance(unit, dict):
@@ -47,12 +55,6 @@ def convert_unit(unit: str):
 
 
 def _convert_unit_string(unit_string: str):
-    if unit_string == "absorbance":
-        unit_def = UnitDefinition(id="absorbance", name="absorbance")
-        _dimensionless_unit(unit_def)
-
-        return unit_def
-
     unit = Unit(unit_string)
     unit_def = UnitDefinition(id=unit.to_string(), name=unit.to_string())
 
@@ -77,6 +79,7 @@ def _process_composite_unit(unit, unit_def):
 
     if not bases:
         _dimensionless_unit(unit_def)
+
     for base, exponent in zip(bases, unit.powers):
         if len(base.decompose().bases) > 1:
             _process_composite_unit(base.decompose(), unit_def)
@@ -86,7 +89,7 @@ def _process_composite_unit(unit, unit_def):
 
 def _dimensionless_unit(
     unit_def: UnitDefinition,
-    scale: float = 1.0,
+    scale: float = 0.0,
     multiplier: float = 1.0,
     exponent: int = 1,
 ):
@@ -108,7 +111,15 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UnitType.LITRE,
             exponent=exponent,
-            scale=int(scale),
+            scale=int(math.log10(scale)),
+            multiplier=1.0,
+        )
+    if base.is_equivalent(u.m):
+        scale = base.to(u.m)
+        unit_def.add_to_base_units(
+            kind=UnitType.METRE,
+            exponent=exponent,
+            scale=int(math.log10(scale)),
             multiplier=1.0,
         )
     elif base.is_equivalent(u.gram):
@@ -140,7 +151,7 @@ def _process_base_unit(
             unit_def.add_to_base_units(
                 kind=UNIT_MAPPING[base.bases[0].to_string()],
                 exponent=exponent,
-                scale=1,
+                scale=0.0,
                 multiplier=1.0,
             )
     elif isinstance(base, IrreducibleUnit):
