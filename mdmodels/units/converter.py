@@ -19,6 +19,7 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
+
 import json
 import math
 from json import JSONDecodeError
@@ -35,6 +36,7 @@ from astropy.units import (
 from .mappings import UNIT_MAPPING
 from .unit_definition import UnitType, UnitDefinition
 
+# Define custom units and add them to the astropy unit registry
 CUSTOM_UNITS = [
     u.def_unit("absorbance", u.dimensionless_unscaled),
     u.def_unit("M", u.mol / u.L, prefixes=True),
@@ -46,6 +48,15 @@ u.add_enabled_units(CUSTOM_UNITS)
 
 
 def convert_unit(unit: str):
+    """
+    Convert a unit string or dictionary to a UnitDefinition object.
+
+    Args:
+        unit (str): The unit to convert, either as a JSON string or a dictionary.
+
+    Returns:
+        UnitDefinition: The converted unit definition.
+    """
     if isinstance(unit, dict):
         return UnitDefinition(**unit)
 
@@ -56,6 +67,15 @@ def convert_unit(unit: str):
 
 
 def _convert_unit_string(unit_string: str):
+    """
+    Convert a unit string to a UnitDefinition object.
+
+    Args:
+        unit_string (str): The unit string to convert.
+
+    Returns:
+        UnitDefinition: The converted unit definition.
+    """
     unit = Unit(unit_string)
     unit_def = UnitDefinition(id=unit.to_string(), name=unit.to_string())
 
@@ -70,6 +90,13 @@ def _convert_unit_string(unit_string: str):
 
 
 def _process_composite_unit(unit, unit_def):
+    """
+    Process a composite unit and add its components to the unit definition.
+
+    Args:
+        unit (CompositeUnit): The composite unit to process.
+        unit_def (UnitDefinition): The unit definition to update.
+    """
     bases = unit.bases
 
     if unit.scale != 1.0:
@@ -94,6 +121,15 @@ def _dimensionless_unit(
     multiplier: float = 1.0,
     exponent: int = 1,
 ):
+    """
+    Add a dimensionless unit to the unit definition.
+
+    Args:
+        unit_def (UnitDefinition): The unit definition to update.
+        scale (float, optional): The scale of the unit. Defaults to 0.0.
+        multiplier (float, optional): The multiplier of the unit. Defaults to 1.0.
+        exponent (int, optional): The exponent of the unit. Defaults to 1.
+    """
     unit_def.add_to_base_units(
         kind=UnitType.DIMENSIONLESS,
         exponent=exponent,
@@ -107,6 +143,14 @@ def _process_base_unit(
     base: Unit | PrefixUnit | IrreducibleUnit | UnitBase,
     exponent: int,
 ):
+    """
+    Process a base unit and add it to the unit definition.
+
+    Args:
+        unit_def (UnitDefinition): The unit definition to update.
+        base (Unit | PrefixUnit | IrreducibleUnit | UnitBase): The base unit to process.
+        exponent (int): The exponent of the unit.
+    """
     if base.is_equivalent(u.liter):
         scale = base.to(u.liter)
         unit_def.add_to_base_units(
@@ -115,7 +159,7 @@ def _process_base_unit(
             scale=int(math.log10(scale)),
             multiplier=1.0,
         )
-    if base.is_equivalent(u.m):
+    elif base.is_equivalent(u.m):
         scale = base.to(u.m)
         unit_def.add_to_base_units(
             kind=UnitType.METRE,
@@ -128,7 +172,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UnitType.GRAM,
             exponent=exponent,
-            scale=scale,
+            scale=int(math.log10(scale)),
             multiplier=1.0,
         )
     elif isinstance(base, PrefixUnit):
