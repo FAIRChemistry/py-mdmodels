@@ -64,10 +64,10 @@ def build_module(
     module = DottedDict()
 
     for rs_type in dm.model.objects:
-        build_type(dm, rs_type, module, module)
+        if rs_type.name in module:
+            continue
 
-    if dm.model.name:
-        mod_name = dm.model.name
+        module[rs_type.name] = build_type(dm, rs_type, module)
 
     return module
 
@@ -97,7 +97,6 @@ def build_type(
     dm: RSDataModel,
     rs_type,
     py_types: dict,
-    py_enums: dict | None = None,
 ):
     """
     Build a Python type from a data model type.
@@ -106,16 +105,13 @@ def build_type(
         dm (RSDataModel): The data model.
         rs_type: The data model type.
         py_types (dict): Dictionary of Python units.
-        py_enums (dict, optional): Dictionary of Python enums. Defaults to None.
     """
-    if py_enums is None:
-        py_enums = {}
 
     attrs = {}
 
     for attribute in rs_type.attributes:
         params = {}
-        dtype = get_dtype(attribute, dm, py_types, py_enums)
+        dtype = get_dtype(attribute, dm, py_types)
 
         if attribute.is_array:
             dtype = list[dtype]
@@ -134,20 +130,17 @@ def build_type(
         else:
             attrs[attribute.name] = (dtype, element(tag=attribute.xml.name, **params))
 
-    py_types[rs_type.name] = create_model(
+    return create_model(
         rs_type.name,
         __base__=DataModel,
         **attrs,
     )
-
-    return py_types[rs_type.name]
 
 
 def get_dtype(
     attribute,
     dm: RSDataModel,
     py_types: dict,
-    py_enums: dict,
 ):
     """
     Get the Python data type for an attribute.
@@ -170,9 +163,11 @@ def get_dtype(
     elif dtype in py_types:
         return py_types[dtype]
     elif sub_obj := next((o for o in dm.model.objects if o.name == dtype), None):
-        return build_type(dm, sub_obj, py_types)
+        py_types[dtype] = build_type(dm, sub_obj, py_types)
+        return py_types[dtype]
     elif enum_obj := next((o for o in dm.model.enums if o.name == dtype), None):
-        return build_enum(enum_obj, py_types)
+        py_types[dtype] = build_enum(enum_obj, py_types)
+        return py_types[dtype]
     else:
         raise ValueError(f"Unknown type {dtype}")
 
