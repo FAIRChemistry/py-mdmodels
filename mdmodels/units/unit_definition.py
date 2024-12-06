@@ -7,11 +7,10 @@ from xml.dom import minidom
 from astropy.units import Unit
 from pydantic_xml import attr, element, BaseXmlModel
 
+from mdmodels.datamodel import DataModel
 
-class UnitDefinition(
-    BaseXmlModel,
-    search_mode="unordered",
-):
+
+class UnitDefinition(DataModel):
     """
     A class to represent a unit definition in XML format.
 
@@ -79,10 +78,7 @@ class UnitDefinition(
         return parsed_xml.toprettyxml(indent="  ")
 
 
-class BaseUnit(
-    BaseXmlModel,
-    search_mode="unordered",
-):
+class BaseUnit(DataModel):
     """
     A class to represent a base unit in XML format.
 
