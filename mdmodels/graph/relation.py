@@ -20,7 +20,6 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
-
 from __future__ import annotations
 
 from typing import Any
@@ -38,21 +37,54 @@ from neomodel import db
 
 
 class DynRelationship(Relationship):
+    """
+    A dynamic relationship class that allows setting properties when connecting nodes.
+    """
+
     def connect(self, node, properties: dict | None = None):
+        """
+        Connects the relationship to a node with optional properties.
+
+        Args:
+            node: The node to connect to.
+            properties (dict, optional): Properties to set on the relationship. Defaults to None.
+        """
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
         super().connect(node)
 
 
 class DynRelationshipTo(RelationshipTo):
+    """
+    A dynamic relationship class for outgoing relationships that allows setting properties when connecting nodes.
+    """
+
     def connect(self, node, properties: dict | None = None):
+        """
+        Connects the relationship to a node with optional properties.
+
+        Args:
+            node: The node to connect to.
+            properties (dict, optional): Properties to set on the relationship. Defaults to None.
+        """
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
         super().connect(node)
 
 
 class DynRelationshipFrom(RelationshipFrom):
+    """
+    A dynamic relationship class for incoming relationships that allows setting properties when connecting nodes.
+    """
+
     def connect(self, node, properties: dict | None = None):
+        """
+        Connects the relationship to a node with optional properties.
+
+        Args:
+            node: The node to connect to.
+            properties (dict, optional): Properties to set on the relationship. Defaults to None.
+        """
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
 
@@ -63,10 +95,26 @@ def add_structured_rel_properties(
     properties: dict[str, Any],
     rel,
 ):
+    """
+    Adds structured relationship properties to a relationship.
+
+    Args:
+        properties (dict[str, Any]): The properties to add.
+        rel: The relationship to which the properties will be added.
+    """
     rel.definition["model"] = _create_dyn_body(properties)
 
 
 def _create_dyn_body(properties: dict[str, Any]):
+    """
+    Creates a dynamic body for a relationship based on the given properties.
+
+    Args:
+        properties (dict[str, Any]): The properties to include in the dynamic body.
+
+    Returns:
+        type: A dynamically created StructuredRel class with the given properties.
+    """
     body = {}
 
     for key, value in properties.items():
@@ -108,26 +156,21 @@ def create_dynamic_relationship(
         ValueError: If the relationship type is not a valid identifier.
     """
 
-    # Validate relationship_type if needed to prevent injection (optional)
     if not relationship_type.isidentifier():
         raise ValueError("Invalid relationship type provided.")
 
-    # Construct the Cypher query with the dynamic relationship type
     query = f"""
     MATCH (a), (b)
     WHERE elementId(a) = $from_id AND elementId(b) = $to_id
     MERGE (a)-[r:{relationship_type}]->(b)
     """
 
-    # If there are properties, add SET statements to the query
     if properties:
         set_statements = ", ".join([f"r.{k} = ${k}" for k in properties.keys()])
         query += f" SET {set_statements}"
 
-    # Combine the parameters for the query
     params = {"from_id": from_node.element_id, "to_id": to_node.element_id}
     if properties:
         params.update(properties)
 
-    # Execute the query
     db.cypher_query(query, params)
