@@ -21,17 +21,159 @@
 #  -----------------------------------------------------------------------------
 
 import asyncio
-import types
 from pathlib import Path
-from typing import get_args, Any
+from typing import get_args, Any, get_origin, Coroutine
 from xml.dom import minidom
 
 import jsonpath
 from bigtree import nested_dict_to_tree
+from pydantic import model_validator, ValidationError
+from pydantic_core import InitErrorDetails
 from pydantic_xml import BaseXmlModel
+from rich.console import Console
+from rich.table import Table
+
+from mdmodels.utils import extract_dtype
+
+from .git_utils import create_github_url
+from .library import Library
+from .meta import DataModelMeta
+from .reference import ReferenceContext
 
 
-class DataModel(BaseXmlModel):
+class DataModel(BaseXmlModel, metaclass=DataModelMeta):
+    """
+    A class to represent a data model with various utility methods.
+    """
+
+    def validate(self):  # noqa
+        """
+        Revalidate the dataset.
+
+        This is mainly useful to revalidate the dataset after it has been modified.
+
+        Returns:
+            self: The revalidated data model instance.
+        """
+        type(self).model_validate(self)
+
+    @model_validator(mode="after")
+    def validate_references(self):
+        """
+        Validate references in the data model after initialization.
+
+        This method checks the reference paths defined in the model's metadata
+        and validates them against the JSON representation of the model.
+
+        Returns:
+            self: The validated data model instance.
+
+        Raises:
+            ValidationError: If any validation errors are found.
+        """
+        ctx = self.__class__.__mdmodels__.reference_paths
+
+        if not ctx:
+            return self
+
+        json_rep = self.model_dump()
+
+        validation_errors: list[InitErrorDetails] = [
+            error
+            for error in asyncio.run(self._validate_batch(ctx, json_rep))
+            if error is not None
+        ]
+
+        if validation_errors:
+            raise ValidationError.from_exception_data(
+                title=self.__class__.__name__,
+                line_errors=validation_errors,
+            )
+
+        return self
+
+    @staticmethod
+    async def _validate_batch(
+        ctx: list[ReferenceContext],
+        json_rep: dict,
+    ):
+        """
+        Validate a batch of reference contexts asynchronously.
+
+        This method prepares and validates each reference context in the given
+        context list against the JSON representation of the model.
+
+        Args:
+            ctx (list): The list of reference contexts to validate.
+            json_rep (dict): The JSON representation of the data model.
+
+        Returns:
+            list: A list of validation errors, if any.
+        """
+        await asyncio.gather(*[c.prepare(json_rep) for c in ctx])
+
+        tasks = []
+        for c in ctx:
+            tasks += c.validate_references()
+
+        return await asyncio.gather(*tasks)
+
+    @classmethod
+    def info(cls):
+        """
+        Display information about the data model.
+
+        Returns:
+            str: The data model's name.
+        """
+        console = Console()
+        table = Table(
+            title=cls.__name__,
+            title_style="bold magenta",
+            caption_justify="left",
+        )
+
+        table.add_column("Field", style="cyan")
+        table.add_column("Type", style="magenta")
+        table.add_column("Adder", style="green")
+
+        for name, field in cls.model_fields.items():
+            dtype = extract_dtype(field.annotation)
+
+            if get_origin(field.annotation) is list:
+                dtype = list[dtype]
+                annot = (
+                    repr(dtype).replace("pydantic_xml.model.", "").replace("[", r"\[")
+                )
+            elif hasattr(dtype, "__name__"):
+                annot = dtype.__name__
+            else:
+                annot = repr(dtype)
+
+            adder = cls._find_adder_method(list(cls.__dict__.keys()), name)
+
+            table.add_row(name, annot, adder)
+
+        console.print(table)
+
+    @staticmethod
+    def _find_adder_method(keys: list[str], field: str):
+        """
+        Find the adder method for a field.
+
+        Args:
+            keys (list[str]): The keys to search for.
+            field (str): The field to search for.
+
+        Returns:
+            str: The adder method name.
+        """
+        for key in keys:
+            if key.startswith(f"add_to_{field}"):
+                return key
+
+        return ""
+
     @classmethod
     def meta_tree(cls):
         """
@@ -86,7 +228,7 @@ class DataModel(BaseXmlModel):
         return {"name": cls.__name__, "children": children}
 
     @classmethod
-    def from_markdown(cls, path: Path | str) -> types.ModuleType:
+    def from_markdown(cls, path: Path | str) -> Library:
         """
         Create a data model from a markdown file.
 
@@ -94,7 +236,7 @@ class DataModel(BaseXmlModel):
             path (Path | str): Path to the markdown file.
 
         Returns:
-            types.ModuleType: A module containing the generated data model.
+            Library: A dotted dict containing the generated modules
         """
         from .create import build_module
 
@@ -110,7 +252,7 @@ class DataModel(BaseXmlModel):
         spec_path: str,
         branch: str | None = None,
         tag: str | None = None,
-    ) -> types.ModuleType:
+    ) -> Library:
         """
         Create a data model from a markdown file hosted on GitHub.
 
@@ -125,21 +267,7 @@ class DataModel(BaseXmlModel):
         """
         from .create import build_module
 
-        assert (
-            branch is not None or tag is not None
-        ), "Either branch or tag must be provided"
-        assert (
-            branch is None or tag is None
-        ), "Either branch or tag must be provided, not both"
-
-        if branch:
-            url = f"https://raw.githubusercontent.com/{repo}/{branch}/{spec_path}"
-        elif tag:
-            url = f"https://raw.githubusercontent.com/{repo}/tags/{tag}/{spec_path}"
-        else:
-            url = f"https://raw.githubusercontent.com/{repo}/{spec_path}"
-
-        return build_module(url)
+        return build_module(create_github_url(branch, repo, spec_path, tag))
 
     def find(self, json_path: str) -> Any | None:
         """
@@ -151,13 +279,40 @@ class DataModel(BaseXmlModel):
         Returns:
             Any: The value of the field.
         """
-
         try:
-            result = asyncio.run(jsonpath.findall_async(json_path, self.model_dump()))
+            result = asyncio.run(self._query_by_path(json_path))
             return result
         except StopIteration:
             print(f"Could not find data using JSON path: {json_path}")
             return None
+
+    def find_multiple(self, json_paths: list[str]) -> dict[str, Any]:
+        """
+        Find the values of multiple fields using JSON paths.
+
+        Args:
+            json_paths (list[str]): A list of JSON paths to the fields.
+
+        Returns:
+            list: A list of values for each field.
+        """
+
+        tasks = [self._query_by_path(path) for path in json_paths]
+        results = asyncio.run(asyncio.gather(*tasks))  # noqa
+
+        return {path: res for path, res in zip(json_paths, results)}
+
+    def _query_by_path(self, path: str) -> Coroutine[Any, Any, list[object]]:
+        """
+        Query the data model by path.
+
+        Args:
+            path (str): The path to query.
+
+        Returns:
+            Any: The result of the query.
+        """
+        return jsonpath.findall_async(path, self.model_dump())
 
     def xml(
         self,
@@ -181,3 +336,16 @@ class DataModel(BaseXmlModel):
         raw_xml = self.to_xml(encoding=None, skip_empty=skip_empty)
         parsed_xml = minidom.parseString(raw_xml)
         return parsed_xml.toprettyxml(indent="  ")
+
+    @classmethod
+    def json_paths(cls, leafs: bool = True) -> list[str]:
+        """Get all JSON paths for the data model.
+
+        Returns:
+            list[str]: A list of JSON paths for the data model.
+        """
+        assert cls.__mdmodels__.path_factory, "Path factory not found for data model"
+
+        path_factory = cls.__mdmodels__.path_factory
+
+        return path_factory.get_all_paths(cls.__name__, leafs=leafs)
