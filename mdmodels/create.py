@@ -23,7 +23,7 @@
 import pathlib
 from enum import Enum
 from functools import partial
-from typing import Any, Annotated
+from typing import Any, Annotated, ForwardRef
 
 import httpx
 import validators
@@ -138,13 +138,14 @@ def build_type(
         py_types (dict): Dictionary of Python units.
     """
 
+    forward_refs = []
     attrs = {}
 
     for attribute in rs_type.attributes:
         params = {}
-        dtype = get_dtype(attribute, dm, py_types)
+        dtype = get_dtype(attribute, dm, py_types, rs_type.name)
 
-        if dtype.__name__ in py_types:
+        if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):
             module.add_cross_connection(
                 source_type=rs_type.name,
                 source_attr=attribute.name,
@@ -152,10 +153,17 @@ def build_type(
                 is_array=attribute.is_array,
             )
 
-            dtype = Annotated[
-                dtype,
-                BeforeValidator(partial(_check_type_compliance, cls=dtype)),
-            ]
+            if hasattr(dtype, "__recursive__"):
+                dtype = ForwardRef(dtype.__name__)
+                forward_refs.append(dtype)
+
+            before_validator = partial(
+                _check_type_compliance,
+                cls=dtype,  # type: ignore
+                py_types=py_types,  # type: ignore
+            ) 
+
+            dtype = Annotated[dtype, BeforeValidator(before_validator)]  # type: ignore
 
         if attribute.is_array:
             dtype = list[dtype]
@@ -187,6 +195,9 @@ def build_type(
         __base__=DataModel,
         **attrs,
     )
+
+    for ref in forward_refs:
+        ref._evaluate(py_types, py_types, set())
 
     _extract_references(rs_type)
     apply_adder_methods(model)
@@ -275,6 +286,7 @@ def get_dtype(
     attribute,
     dm: RSDataModel,
     py_types: dict,
+    rs_type_name: str,
 ):
     """
     Get the Python data type for an attribute.
@@ -283,12 +295,15 @@ def get_dtype(
         attribute: The attribute.
         dm (RSDataModel): The data model.
         py_types (dict): Dictionary of Python units.
-
+        rs_type_name (str): The name of the data model type.
     Returns:
         type: The Python data type.
     """
     dtype = attribute.dtypes[0]
 
+    if dtype == rs_type_name:
+        return type(rs_type_name, (DataModel,), {"__recursive__": True})
+    
     if dtype in TYPE_MAPPING:
         return TYPE_MAPPING[dtype]
     elif dtype == "UnitDefinition":
@@ -326,7 +341,8 @@ def build_enum(enum_obj, py_types: dict):
 def _check_type_compliance(
     value: Any,
     info: ValidationInfo,
-    cls: type[DataModel],
+    cls: type[DataModel] | ForwardRef,
+    py_types: Library,
 ):
     """
     Check if the value complies with the expected data model type.
@@ -341,8 +357,9 @@ def _check_type_compliance(
     """
     if not hasattr(value, "model_fields"):
         return value
-
-    if type(value).__name__ == cls.__name__:
-        return cls(**value.model_dump())
+    if isinstance(cls, ForwardRef):
+        cls = cls._evaluate(py_types, py_types, set())  # type: ignore
+    if type(value).__name__ == cls.__name__:  # type: ignore
+        return cls(**value.model_dump())  # type: ignore
 
     return value
