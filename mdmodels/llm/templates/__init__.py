@@ -20,45 +20,4 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
-from io import StringIO
-from typing import Annotated, Any
-
-import pandas as pd
-from pydantic import BeforeValidator, PlainSerializer, InstanceOf, WithJsonSchema
-
-
-def md_to_df(data: Any) -> Any:
-    """
-    Convert markdown string to a pandas DataFrame.
-
-    Args:
-        data (Any): The input data, expected to be a markdown string.
-
-    Returns:
-        Any: The converted pandas DataFrame if input is a string, otherwise returns the input data.
-    """
-    if isinstance(data, str):
-        return (
-            pd.read_csv(
-                StringIO(data),  # Process data
-                sep="|",
-                index_col=1,
-            )
-            .dropna(axis=1, how="all")
-            .iloc[1:]
-            .applymap(lambda x: x.strip())
-        )
-    return data
-
-
-MarkdownDataFrame = Annotated[
-    InstanceOf[pd.DataFrame],
-    BeforeValidator(md_to_df),
-    PlainSerializer(lambda df: df.to_markdown()),
-    WithJsonSchema(
-        {
-            "type": "string",
-            "description": "The markdown representation of the table, each one should be tidy, do not try to join tables that should be seperate",
-        }
-    ),
-]
+from .dataset_query import dataset_query  # noqa: F401

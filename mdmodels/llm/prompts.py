@@ -22,8 +22,6 @@
 
 from textwrap import dedent
 
-from pydantic import BaseModel
-
 # Base instructions for interacting with the user
 BASE_INSTRUCTIONS = """
 ### How to Interact with the User:
@@ -153,57 +151,6 @@ def create_query(
         It is vital that you do what the user asks you to do.
         
         {additional_info}
-        """
-    )
-
-    return pre_prompt, query
-
-
-def create_merge_prompt(
-    original_query: str,
-    original_response: BaseModel,
-):
-    """
-    Create a merge prompt for combining web query responses with the original response.
-
-    Args:
-        original_query (str): The original query string.
-        original_response (BaseModel): The original response model.
-
-    Returns:
-        str: The formatted merge prompt string.
-    """
-    pre_prompt = dedent(
-        f"""
-        
-        Merge the responses from the web queries with the original response. Make sure
-        to combine the information in a coherent manner. If there is complementary information,
-        make sure to include it.
-        
-        It is vital that you identify complementary information and merge it with the original response.
-        Please identify new entries which do not fit the original response and leave them. Think step by
-        step and make sure to provide a coherent response.
-        
-        It is very important, that when you fetched metadata from the web that contains an identifier,
-        you should replace that identifier with the original identifier. If there is no identifier, assign 
-        a new one or keep the previous one.
-        """
-    )
-    query = dedent(
-        f"""
-        Original response:
-        
-        <user_response>
-        {original_response.model_dump_json(indent=2)}
-        </user_response>
-        
-        Original query:
-        
-        <user_query>
-        {original_query}
-        </user_query>
-        
-        Responses to combine:
         """
     )
 

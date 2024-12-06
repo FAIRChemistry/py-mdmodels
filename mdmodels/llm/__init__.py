@@ -23,10 +23,12 @@
 from .handler import query_openai
 from .prompts import create_query, create_initial_query
 from .response import Response
+from .embed import embedding
 
 __all__ = [
     "query_openai",
     "create_query",
     "create_initial_query",
     "Response",
+    "embedding",
 ]

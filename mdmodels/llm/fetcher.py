@@ -29,16 +29,15 @@ from pydantic import BaseModel
 
 from mdmodels import DataModel
 from mdmodels.llm.response import RefinedQuery, Response
-from mdmodels.llm.utils import extract_user_query
 
 
 async def fetch_response(
     client: Instructor,
     response_model: Type[BaseModel],
-    to_parse: str,
+    query: str,
     pre_prompt: str = "",
     llm_model: str = "gpt-4o",
-    refine_query: bool = True,
+    refine_query: bool = False,
     previous_response: str | None = None,
 ) -> BaseModel:
     """
@@ -47,10 +46,11 @@ async def fetch_response(
     Args:
         client (Instructor): The OpenAI client.
         response_model (Type[BaseModel]): The model to use for the response.
-        to_parse (str): The content to parse.
+        query (str): The content to parse.
         pre_prompt (str, optional): The pre-prompt to use. Defaults to "".
         llm_model (str, optional): The model to use. Defaults to "gpt-4o".
         refine_query (bool, optional): Whether to refine the query. Defaults to False.
+        previous_response (str | None, optional): The previous response. Defaults to None.
 
     Returns:
         The response from the API.
@@ -59,26 +59,32 @@ async def fetch_response(
     if refine_query:
         res = await _refine_query(
             client=client,
-            query=pre_prompt,
+            query=query,
             llm_model=llm_model,
         )
 
         assert res.refined_query, "Refined query is empty"
 
         pattern = re.compile(r"<user query>.*</user query>")
-        pre_prompt = pattern.sub(
-            f"<user query>{res.refined_query}</user query>", to_parse
+        query = pattern.sub(f"<user query>{res.refined_query}</user query>", query)
+
+    messages = [
+        {"role": "system", "content": pre_prompt},
+    ]
+
+    if previous_response:
+        messages.append(
+            {
+                "role": "user",
+                "content": f"This has been the previous response {previous_response}",
+            }
         )
 
     return client.chat.completions.create(
         model=llm_model,
         messages=[
-            {"role": "system", "content": pre_prompt},
-            {
-                "role": "assistant",
-                "content": f"This has been the previous response {previous_response}",
-            },
-            {"role": "user", "content": to_parse},
+            *messages,
+            {"role": "user", "content": query},
         ],
         temperature=0,
         response_model=response_model,
@@ -102,7 +108,6 @@ async def _refine_query(
         RefinedQuery: The refined query model.
     """
 
-    query = extract_user_query(query)
     return client.chat.completions.create(
         model=llm_model,
         messages=[

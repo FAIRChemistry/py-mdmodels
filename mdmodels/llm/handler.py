@@ -27,59 +27,63 @@ from typing import Type
 import instructor
 from instructor import from_openai
 from openai import OpenAI
+from pydantic import BaseModel
 from rich.console import Console
 
 from mdmodels import DataModel
 from mdmodels.llm.fetcher import prepare_query, fetch_response
-from mdmodels.llm.response import Action
-from mdmodels.llm.utils import _print_response
-from mdmodels.llm.web import query_the_web
-
-DATA_UPDATE_ACTIONS = [Action.EXTRACTION, Action.DATA_UPDATE]
 
 
 def query_openai(
-    response_model: Type[DataModel],
-    to_parse: str,
+    response_model: Type[DataModel] | Type[BaseModel],
+    query: str,
     pre_prompt: str = "",
     base_url: str | None = None,
     api_key: str | None = None,
     llm_model: str = "gpt-4o",
-    verbose: bool = True,
-    query_web: bool = True,
-    refine_query: bool = True,
+    refine_query: bool = False,
     previous_data_response: DataModel = None,
+    use_scaffold: bool = True,
 ):
     """
-    Query the OpenAI API with the provided parameters.
+    Queries the OpenAI API using the specified parameters and returns the response.
+
+    This function constructs a query to the OpenAI API, optionally refining the query
+    and using a scaffold if specified. It requires an API key for authentication unless
+    using the 'ollama' model, which requires a base URL.
 
     Args:
-        response_model (Type[DataModel]): The model to use for the response.
-        to_parse (str): The content to parse.
-        pre_prompt (str, optional): The pre-prompt to use. Defaults to "".
-        base_url (str | None, optional): The base URL for the API. Defaults to None.
-        api_key (str | None, optional): The API key for authentication. Defaults to None.
-        llm_model (str, optional): The model to use. Defaults to "gpt-4o".
-        verbose (bool, optional): Whether to print the response. Defaults to True.
-        query_web (bool, optional): Whether to query the web for additional information. Defaults to True.
-        refine_query (bool, optional): Whether to refine the query. Defaults to True.
-        previous_data_response (DataModel, optional): The previous data response. Defaults to None.
+        response_model (Type[DataModel] | Type[BaseModel]): The model to use for the response.
+        query (str): The content to parse and send to the API.
+        pre_prompt (str, optional): An optional pre-prompt to include with the query. Defaults to "".
+        base_url (str | None, optional): The base URL for the API. Required for 'ollama' model. Defaults to None.
+        api_key (str | None, optional): The API key for authentication. Required for non-'ollama' models. Defaults to None.
+        llm_model (str, optional): The language model to use. Defaults to "gpt-4o".
+        refine_query (bool, optional): Indicates whether to refine the query before sending. Defaults to False.
+        previous_data_response (DataModel, optional): The previous data response to include in the query. Defaults to None.
+        use_scaffold (bool, optional): Indicates whether to use a scaffold for the query. Defaults to True.
 
     Returns:
-        The response from the API.
+        BaseModel: The response from the OpenAI API.
+
+    Example:
+        >>> from mdmodels.llm.handler import query_openai
+        >>> response = query_openai(
+        ...     response_model=dataset,
+        ...     query="What is the capital of France?",
+        ...     api_key="your_api_key"
+        ... )
+        >>> print(response)
+        DataModel(field1="Paris", field2="France")
     """
-    if llm_model != "ollama":
-        assert api_key is not None or os.environ.get("OPENAI_API_KEY"), (
-            "API key is required for non-ollama models. "
-            "Either provide it or set it as an environment variable 'OPENAI_API_KEY'"
-        )
-    else:
-        assert base_url is not None, "Base URL is required for ollama model"
 
     client = create_oai_client(api_key=api_key, base_url=base_url)
     console = Console()
 
-    wrapped_response_model = prepare_query(response_model)
+    if use_scaffold:
+        wrapped_response_model = prepare_query(response_model)
+    else:
+        wrapped_response_model = response_model
 
     with console.status("Processing...", spinner="dots") as status:
         status.update("Fetching response...")
@@ -87,29 +91,17 @@ def query_openai(
             fetch_response(
                 client=client,
                 response_model=wrapped_response_model,
-                to_parse=to_parse,
+                query=query,
                 pre_prompt=pre_prompt,
                 llm_model=llm_model,
                 refine_query=refine_query,
-                previous_response=previous_data_response.model_dump_json()
-                if previous_data_response
-                else "",
+                previous_response=(
+                    previous_data_response.model_dump_json()
+                    if previous_data_response
+                    else ""
+                ),
             )
         )
-
-        if query_web and response.query_urls:
-            response = query_the_web(
-                client, llm_model, pre_prompt, response, status, wrapped_response_model
-            )
-
-        if response.action == Action.PLOT and response.plot_templates:
-            for plot_template in response.plot_templates:
-                plot_template.plot(data=previous_data_response)
-        elif response.action not in DATA_UPDATE_ACTIONS:
-            response.data = previous_data_response
-
-    if verbose:
-        _print_response(response=response, console=console)
 
     return response
 
@@ -128,6 +120,12 @@ def create_oai_client(
     Returns:
         Instructor: The created OpenAI client.
     """
+
+    assert api_key is not None or os.environ.get("OPENAI_API_KEY"), (
+        "API key is required for non-ollama models. "
+        "Either provide it or set it as an environment variable 'OPENAI_API_KEY'"
+    )
+
     return from_openai(
         OpenAI(api_key=api_key, base_url=base_url),
         mode=instructor.Mode.JSON,
