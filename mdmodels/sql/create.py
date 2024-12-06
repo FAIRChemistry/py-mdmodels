@@ -20,125 +20,98 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import warnings
-from pathlib import Path
 from typing import Optional, List
 
-from mdmodels_core import DataModel
+from mdmodels_core import DataModel # type: ignore
 from pydantic import create_model
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel, Relationship
 
-from mdmodels.create import TYPE_MAPPING
-from mdmodels.sql.base import SQLBase
-from mdmodels.sql.linked_type import LinkedType
-
-PK_KEYS = ["pk", "primary_key", "primary key", "primarykey"]
+from .base import SQLBase
+from .linked_type import LinkedType
+from .utils import extract_foreign_keys, map_pk_types, extract_primary_keys
+from ..create import TYPE_MAPPING
+from ..library import Library
 
 
 def generate_sqlmodel(
     *,
-    path: Path | str | None = None,
-    content: str | None = None,
+    data_model: Library,
     base_classes=None,
-    primary_keys: dict[str, str] = None,
-) -> dict[str, SQLBase]:
+) -> Library:
     """
     Convert a DataModel to a dictionary of SQLModel classes.
 
     Args:
-        path (Path | str | None): Path to the markdown file.
-        content (str | None): The content of the markdown file.
+        data_model (Library): The library containing the data model.
         base_classes (List[type]): A list of base classes to inherit from.
-        primary_keys (dict): A dictionary of primary key mappings.
 
     Returns:
         dict: A dictionary where keys are model names and values are SQLModel classes.
     """
-
     global enums
 
     if base_classes is None:
         base_classes = []
-    if primary_keys is None:
-        primary_keys = {}
 
-    assert path or content, "Either path or content must be provided."
-
-    if content:
-        model = DataModel.from_markdown_string(content).model
-    elif path:
-        model = DataModel.from_markdown(str(path)).model
-    else:
-        raise ValueError("Either path or content must be provided.")
-
+    primary_keys = {}
+    model = data_model._rust_model.model  # noqa
     enums = [enum.name for enum in model.enums]
+
+    foreign_keys = extract_foreign_keys(data_model)
+
     typed_pks = {
-        **_map_pk_types(model, primary_keys),
-        **_extract_primary_keys(model, primary_keys),
+        **map_pk_types(model, primary_keys),
+        **extract_primary_keys(model, primary_keys),
     }
 
     linking_tables = _extract_linking_tables(model, typed_pks)
-    models = dict()
+    models = Library(rust_model=data_model._rust_model)
+    models._cross_connections = data_model._cross_connections
 
     for obj in model.objects:
         pk_name, _ = typed_pks.get(obj.name, (None, None))
+        obj_fks = foreign_keys.get(obj.name, {})
         _process_object(
             linking_tables,
             models,
             obj,
             base_classes,
             pk_name,
+            obj_fks,
         )
 
-    for model in models.values():
+    for name, model in models.items():
+        if name.startswith("_"):
+            continue
+
         model.model_rebuild()
 
     return models
 
 
-def _extract_primary_keys(model, primary_keys):
-    primary_keys = dict()
-    for obj in model.objects:
-        pk_fields = [
-            (attr.name, TYPE_MAPPING[attr.dtypes[0]])
-            for attr in obj.attributes
-            if any(opt.key.lower() in PK_KEYS for opt in attr.options)
-            or attr.name == "id"
-        ]
+def _init_model(content, data_model, path):
+    """
+    Initialize the data model from content, data_model, or path.
 
-        assert (
-            len(pk_fields) <= 1
-        ), f"Multiple primary keys found for object '{obj.name}'."
+    Args:
+        content (str | None): The content of the markdown file.
+        data_model (DataModel | Library | None): The data model.
+        path (Path | str | None): Path to the markdown file.
 
-        if pk_fields:
-            primary_keys[obj.name] = pk_fields[0]
+    Returns:
+        tuple: A tuple containing the data model and rust model.
+    """
+    if content:
+        data_model = DataModel.from_markdown_string(content)
+    elif path:
+        data_model = DataModel.from_markdown_file(path)
+    elif data_model and isinstance(data_model, Library):
+        data_model = data_model._rust_model
+    elif data_model and isinstance(data_model, DataModel):
+        data_model = data_model
 
-    return primary_keys
-
-
-def _map_pk_types(model, primary_keys) -> dict[str, tuple[str, type]]:
-    typed_pks = dict()
-    for obj, attr in primary_keys.items():
-        try:
-            obj = next(o for o in model.objects if o.name == obj)
-        except StopIteration:
-            raise ValueError(f"Primary key object '{obj}' not found in model.")
-
-        try:
-            try:
-                attr = next(a for a in obj.attributes if a.name == attr)
-            except StopIteration:
-                raise ValueError(
-                    f"Primary key attribute '{attr}' not found in object '{obj}'."
-                )
-
-            typed_pks[obj.name] = (attr.name, TYPE_MAPPING[attr.dtypes[0]])
-        except KeyError:
-            raise ValueError(
-                f"Type '' of primary key attribute '{attr}' not found in TYPE_MAPPING."
-            )
-
-    return typed_pks
+    return data_model.model, data_model
 
 
 def _process_object(
@@ -147,6 +120,7 @@ def _process_object(
     obj: DataModel,
     base_classes: List[type],
     primary_key: str | None,
+    foreign_keys: dict[str, (str, str)],
 ) -> None:
     """
     Process an object and add it to the models dictionary.
@@ -156,37 +130,44 @@ def _process_object(
         models (dict): A dictionary to store the processed models.
         obj: The object to process.
         base_classes (List[type]): A list of base classes to inherit from.
-        primary_key (str | None): The primary key attribute
+        primary_key (str | None): The primary key attribute.
+        foreign_keys (dict): A dictionary of foreign keys.
     """
-
     field_definitions = dict()
 
-    if primary_key is None:
-        field_definitions["id"] = (int, Field(default=None, primary_key=True))
+    use_id = primary_key is None
+    has_id = any(attr.name == "id" for attr in obj.attributes)
 
-    for attr in obj.attributes:  # noqa
+    if use_id and not has_id:
+        field_definitions["id"] = (Optional[int], Field(default=None, primary_key=True))
+    elif use_id and has_id:
+        primary_key = "id"
+
+    for attr in obj.attributes:
         is_primary_key = attr.name == primary_key
+        fk = foreign_keys.get(attr.name)
         _process_attribute(
             attr,
             field_definitions,
             linking_tables,
-            obj,  # noqa
+            obj,
             is_primary_key,
+            fk,
         )
 
-    model = create_model(  # noqa
-        obj.name,  # noqa
-        __base__=tuple([SQLBase, *base_classes]),  # noqa
+    model = create_model(
+        obj.name,
+        __base__=tuple([SQLBase, *base_classes]),
         __cls_kwargs__={"table": True},
         **field_definitions,
     )
 
     model.__table_args__ = UniqueConstraint(
         *[field for field in field_definitions.keys() if field != "id"],
-        name=f"unique_{obj.name}_constraints",  # noqa
+        name=f"unique_{obj.name}_constraints",
     )
 
-    models[obj.name] = model  # noqa
+    models[obj.name] = model
 
 
 def _process_attribute(
@@ -195,6 +176,7 @@ def _process_attribute(
     linking_tables,
     obj,
     is_primary_key: bool,
+    fk: tuple[str, str] | None = None,
 ):
     """
     Process an attribute and add it to the field definitions.
@@ -205,6 +187,7 @@ def _process_attribute(
         linking_tables (dict): A dictionary of linking tables.
         obj: The object containing the attribute.
         is_primary_key (bool): Whether the attribute is a primary key.
+        fk (tuple): A tuple of foreign key mappings.
     """
     join_name = _link_table_name(obj.name, attr.name, attr.dtypes[0])
     if TYPE_MAPPING.get(attr.dtypes[0]):
@@ -213,6 +196,7 @@ def _process_attribute(
             TYPE_MAPPING.get(attr.dtypes[0]),
             field_definitions,
             is_primary_key,
+            fk,
         )
     elif attr.dtypes[0] in enums:
         _create_simple_attr(
@@ -220,6 +204,7 @@ def _process_attribute(
             str,
             field_definitions,
             is_primary_key,
+            fk,
         )
     elif linking_tables.get(join_name):
         _create_complex_attr(
@@ -263,13 +248,17 @@ def _create_simple_attr(
     dtype,
     field_definitions,
     is_primary_key,
+    fk: tuple[str, str] | None = None,
 ):
     """
     Create a simple attribute and add it to the field definitions.
 
     Args:
         attr: The attribute to process.
+        dtype: The data type of the attribute.
         field_definitions (dict): A dictionary to store the field definitions.
+        is_primary_key (bool): Whether the attribute is a primary key.
+        fk (tuple): A tuple of foreign key mappings.
     """
     if attr.is_array:
         warnings.warn(
@@ -292,6 +281,18 @@ def _create_simple_attr(
                 "default": None,
                 "nullable": True,
             }
+        )
+
+    if fk:
+        table_name, column = fk
+        field_params["foreign_key"] = f"{table_name.lower()}.{column}"
+        field_definitions[f"{attr.name}__ref"] = (
+            table_name,
+            Relationship(
+                sa_relationship_kwargs={
+                    "cascade": "all",
+                }
+            ),
         )
 
     if attr.docstring:
@@ -346,10 +347,10 @@ def _extract_linking_tables(
     Returns:
         dict: A dictionary of linking tables.
     """
-    dtypes = _all_types(model.objects)  # noqa
+    dtypes = _all_types(model.objects)
     links = []
 
-    for obj in model.objects:  # noqa
+    for obj in model.objects:
         links += _extract_links(dtypes, obj, primary_keys)
 
     tables = {}

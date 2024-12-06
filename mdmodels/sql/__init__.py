@@ -24,3 +24,4 @@ from sqlmodel import select  # noqa
 
 from .connector import DatabaseConnector  # noqa
 from .create import generate_sqlmodel  # noqa
+from .insert_nested import insert_nested  # noqa
