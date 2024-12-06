@@ -35,7 +35,7 @@ UnitDefinitionAnnot = Annotated[
     BeforeValidator(convert_unit),
     PlainSerializer(
         lambda unit: unit.model_dump(),
-        return_type=str,
+        return_type=dict,
     ),
-    WithJsonSchema({"type": "string"}, mode="serialization"),
+    WithJsonSchema({"type": "string"}),
 ]
