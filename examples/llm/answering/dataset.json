@@ -1,0 +1,96 @@
+{
+  "name": "Alcohol Degradation by Alcohol Dehydrogenase",
+  "references": [],
+  "created": null,
+  "modified": null,
+  "creators": [],
+  "vessels": [],
+  "proteins": [
+    {
+      "id": "p1",
+      "name": "Alcohol Dehydrogenase",
+      "constant": false,
+      "sequence": null,
+      "vessel_id": null,
+      "ecnumber": "1.1.1.1",
+      "organism": "Homo sapiens",
+      "organism_tax_id": "9606",
+      "references": []
+    }
+  ],
+  "complexes": [],
+  "small_molecules": [
+    {
+      "id": "sm1",
+      "name": "Ethanol",
+      "constant": false,
+      "vessel_id": null,
+      "canonical_smiles": "CCO",
+      "inchi": "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3",
+      "inchikey": "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+      "references": []
+    },
+    {
+      "id": "sm2",
+      "name": "Acetaldehyde",
+      "constant": false,
+      "vessel_id": null,
+      "canonical_smiles": "CC=O",
+      "inchi": "InChI=1S/C2H4O/c1-2-3/h2H,1H3",
+      "inchikey": "IKHGUXGNUITLKF-UHFFFAOYSA-N",
+      "references": []
+    },
+    {
+      "id": "sm3",
+      "name": "NAD+",
+      "constant": false,
+      "vessel_id": null,
+      "canonical_smiles": null,
+      "inchi": null,
+      "inchikey": null,
+      "references": []
+    },
+    {
+      "id": "sm4",
+      "name": "NADH",
+      "constant": false,
+      "vessel_id": null,
+      "canonical_smiles": null,
+      "inchi": null,
+      "inchikey": null,
+      "references": []
+    }
+  ],
+  "reactions": [
+    {
+      "id": "r1",
+      "name": "Ethanol Oxidation",
+      "reversible": false,
+      "kinetic_law": null,
+      "species": [
+        {
+          "species_id": "sm1",
+          "stoichiometry": 1.0
+        },
+        {
+          "species_id": "sm3",
+          "stoichiometry": 1.0
+        },
+        {
+          "species_id": "sm2",
+          "stoichiometry": 1.0
+        },
+        {
+          "species_id": "sm4",
+          "stoichiometry": 1.0
+        }
+      ],
+      "modifiers": [
+        "p1"
+      ]
+    }
+  ],
+  "measurements": [],
+  "equations": [],
+  "parameters": []
+}

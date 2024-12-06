@@ -1,0 +1,117 @@
+[
+    {
+        "id": "CP002",
+        "title": "Green Energy Catalysis",
+        "authors": [
+          {
+            "orcid": "0000-0001-2345-6789",
+            "name": "Dr. Alice Green"
+          }
+        ],
+        "molecules": [
+          { "id": "M003", "name": "Oxygen", "formula": "O2" },
+          { "id": "M001", "name": "Water", "formula": "H2O" }
+        ],
+        "reactions": [
+          {
+            "id": "R002",
+            "name": "Water Formation",
+            "educts": [
+              { "molecule_id": "M003", "stoichiometry": 2 }
+            ],
+            "products": [
+              { "molecule_id": "M001", "stoichiometry": 2 }
+            ]
+          }
+        ],
+        "experiments": [
+          {
+            "id": "E002",
+            "initial_concentrations": [
+              { "molecule_id": "M003", "value": 1.5, "unit": "mol/L" }
+            ]
+          }
+        ],
+        "kinetic_models": [
+          {
+            "molecule_id": "M003",
+            "equation": "rate = k * [O2]^2"
+          }
+        ]
+      },
+      {
+        "id": "CP003",
+        "title": "Ethanol Studies",
+        "authors": [
+          {
+            "orcid": "0000-0003-1234-5678",
+            "name": "Dr. Carol White"
+          }
+        ],
+        "molecules": [
+          { "id": "M002", "name": "Ethanol", "formula": "C2H6O" },
+          { "id": "M003", "name": "Oxygen", "formula": "O2" },
+          { "id": "M001", "name": "Water", "formula": "H2O" }
+        ],
+        "reactions": [
+          {
+            "id": "R003",
+            "name": "Ethanol Oxidation",
+            "educts": [
+              { "molecule_id": "M002", "stoichiometry": 1 },
+              { "molecule_id": "M003", "stoichiometry": 1 }
+            ],
+            "products": [
+              { "molecule_id": "M001", "stoichiometry": 2 }
+            ]
+          }
+        ],
+        "experiments": [
+          {
+            "id": "E003",
+            "initial_concentrations": [
+              { "molecule_id": "M002", "value": 0.7, "unit": "mol/L" },
+              { "molecule_id": "M003", "value": 1.2, "unit": "mol/L" }
+            ]
+          }
+        ]
+      },
+
+      {
+        "id": "CP004",
+        "title": "Hydrogen Research",
+        "authors": [
+          {
+            "orcid": "0000-0004-5678-9101",
+            "name": "Dr. Emily Green"
+          }
+        ],
+        "molecules": [
+          { "id": "M003", "name": "Oxygen", "formula": "O2" },
+          { "id": "M008", "name": "Hydrogen", "formula": "H2" },
+          { "id": "M001", "name": "Water", "formula": "H2O" }
+        ],
+        "reactions": [
+          {
+            "id": "R004",
+            "name": "Hydrogen Combustion",
+            "educts": [
+              { "molecule_id": "M008", "stoichiometry": 2 },
+              { "molecule_id": "M003", "stoichiometry": 1 }
+            ],
+            "products": [
+              { "molecule_id": "M001", "stoichiometry": 2 }
+            ]
+          }
+        ],
+        "experiments": [
+          {
+            "id": "E004",
+            "initial_concentrations": [
+              { "molecule_id": "M008", "value": 0.5, "unit": "mol/L" },
+              { "molecule_id": "M003", "value": 0.3, "unit": "mol/L" }
+            ]
+          }
+        ]
+      }
+]

@@ -1,4 +1,6 @@
-# Basic Example
+# SQL Basic Example
+
+This example demonstrates how to use the mdmodels library to create tables in a SQL database and insert data into them. We are using the following data model:
 
 ```mermaid
 classDiagram
@@ -7,6 +9,11 @@ classDiagram
         Molecule[] molecules
         Reaction[] reactions
         Experiment[] experiments
+    }
+
+    class Author {
+        string orcid
+        string name
     }
 
     class Molecule {
@@ -29,28 +36,45 @@ classDiagram
     class Reaction {
         string id
         string name
-        Molecule[] educts
-        Molecule[] products
+        Element[] educts
+        Element[] products
+    }
+
+    class Element {
+        string molecule_id
+        number stoichiometry
+    }
+
+    class KineticModel {
+        string molecule_id
+        string equation
     }
 
     ChemicalProject --> Molecule
     ChemicalProject --> Reaction
     ChemicalProject --> Experiment
+    ChemicalProject --> Author
     Experiment --> Concentration
+    Concentration <-- Molecule
+    Reaction --> Element
+    Element <-- Molecule
+    Molecule --> KineticModel
+    ChemicalProject <-- KineticModel
 ```
 
 ---
 
 ### ChemicalProject
 
-This object represents a chemical project and serves as the top-level container for managing various aspects of a
-research project. It organizes the project's title, associated molecules, reactions, and experiments, providing a
-structured overview of the entire chemical workflow.
+This object represents a chemical project and serves as the top-level container for managing various aspects of a research project. It organizes the project's title, associated molecules, reactions, and experiments, providing a structured overview of the entire chemical workflow.
 
 - title
     - Type: string
     - Description: The name/title of the project.
     - PK: True
+- authors
+    - Type: [Author](#author)[]
+    - Description: The authors of the project.
 - molecules
     - Type: [Molecule](#molecule)[]
     - Description: The molecules used in the project.
@@ -60,6 +84,21 @@ structured overview of the entire chemical workflow.
 - experiments
     - Type: [Experiment](#experiment)[]
     - Description: The experiments in the project.
+- kinetic_models
+    - Type: [KineticModel](#kineticmodel)[]
+    - Description: The kinetic models in the project.
+
+---
+
+### Author
+
+- orcid
+    - Type: string
+    - Description: The ORCID of the author.
+    - PK: True
+- name
+    - Type: string
+    - Description: The name of the author.
 
 ---
 
@@ -71,7 +110,6 @@ structured overview of the entire chemical workflow.
 - name
     - Type: string
     - Description: The name of the molecule.
-    - Default: Lel
 - formula
     - Type: string
     - Description: The formula of the molecule.
@@ -113,10 +151,10 @@ structured overview of the entire chemical workflow.
     - Type: string
     - Description: The name of the reaction.
 - educts
-    - Type: [Molecule](#molecule)[]
+    - Type: [Element](#element)[]
     - Description: The reactants of the reaction.
 - products
-    - Type: [Molecule](#molecule)[]
+    - Type: [Element](#element)[]
     - Description: The products of the reaction.
 
 ---
@@ -126,6 +164,19 @@ structured overview of the entire chemical workflow.
 - molecule_id
     - Type: string
     - Description: The identifier of the molecule.
+    - References: ChemicalProject.molecules.id
 - stoichiometry
     - Type: number
     - Description: The stoichiometry of the reactant.
+
+---
+
+### KineticModel
+
+- molecule_id
+    - Type: string
+    - Description: The identifier of the molecule.
+    - References: ChemicalProject.molecules.id
+- equation
+    - Type: string
+    - Description: The equation of the kinetic model.
