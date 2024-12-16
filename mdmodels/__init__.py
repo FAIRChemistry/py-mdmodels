@@ -24,7 +24,10 @@ from mdmodels_core import Templates  # noqa
 
 from .datamodel import DataModel
 
-nest_asyncio.apply()
+
+def patch_nest_asyncio():
+    nest_asyncio.apply()
+
 
 __all__ = [
     "DataModel",
