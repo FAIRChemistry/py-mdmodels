@@ -32,6 +32,9 @@ class SQLBase(SQLModel):
             data = obj.model_dump()
             for relation_name in obj.__class__.__annotations__:
                 if relation_name not in data and hasattr(obj, relation_name):
+                    if not getattr(obj, relation_name):
+                        continue
+
                     data[relation_name] = cls._to_dict_with_relationships(
                         getattr(obj, relation_name)
                     )
