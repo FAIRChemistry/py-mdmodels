@@ -31,7 +31,7 @@ jobs:
         env:
           NEO4J_USER: neo4j
           NEO4J_PASSWORD: your_password
-          NEO4J_HOST: neo4j
+          NEO4J_HOST: localhost
           NEO4J_PORT: 7687
         run: |
           python3 -m poetry run pytest
