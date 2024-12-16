@@ -21,11 +21,17 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install poetry
           poetry install --with dev,sql,graph
+      - name: Wait for Neo4j service to be ready
+        run: |
+          until curl -s http://localhost:7474; do
+            echo "Waiting for Neo4j service to be ready..."
+            sleep 5
+          done
       - name: Test with pytest
         env:
           NEO4J_USER: neo4j
           NEO4J_PASSWORD: your_password
-          NEO4J_HOST: localhost
+          NEO4J_HOST: neo4j
           NEO4J_PORT: 7687
         run: |
           python3 -m poetry run pytest
@@ -41,3 +47,8 @@ jobs:
           NEO4J_PASSWORD: your_password
           NEO4J_HOST: localhost
           NEO4J_PORT: 7687
+        options: >-
+          --health-cmd="curl -f http://localhost:7474 || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
