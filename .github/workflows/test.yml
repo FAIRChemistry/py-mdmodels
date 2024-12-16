@@ -1,6 +1,11 @@
 name: Library Tests
 
-on: [push]
+on:
+  push:
+    paths:
+      - "mdmodels/**"
+      - "tests/**"
+      - "pyproject.toml"
 
 jobs:
   build:

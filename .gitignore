@@ -2,10 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
-**/__pycache__/
 
 # C extensions
 *.so
+*.pyc
 
 # Distribution / packaging
 .Python
@@ -84,7 +84,7 @@ profile_default/
 ipython_config.py
 
 # pyenv
-#   For a library or package, you might want to ignore these files since the code is
+#   For a data_model or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
 # .python-version
 
@@ -165,3 +165,8 @@ cython_debug/
 # MacOs
 .DS_Store
 **/.DS_Store
+
+.ruff_cache/
+.vscode/
+app.py
+poetry.lock
