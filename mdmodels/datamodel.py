@@ -22,11 +22,10 @@
 
 import asyncio
 from pathlib import Path
-from typing import get_args, Any, get_origin, Coroutine
+from typing import Any, get_origin, Coroutine
 from xml.dom import minidom
 
 import jsonpath
-from bigtree import nested_dict_to_tree  # type: ignore
 from pydantic import model_validator, ValidationError
 from pydantic_core import InitErrorDetails
 from pydantic_xml import BaseXmlModel

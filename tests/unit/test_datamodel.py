@@ -32,7 +32,7 @@ class TestDataModel:
         for part in expected_parts:
             assert part in library, f"Part {part} not found in library"
 
-    def test_parse_from_url(self, httpx_mock):
+    def test_parse_from_url(self, httpx_mock):  # noqa: F811
         """
         Test parsing a DataModel from a URL.
 
