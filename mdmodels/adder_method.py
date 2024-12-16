@@ -20,11 +20,12 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import builtins
-from typing import get_origin, get_args, Annotated
+from typing import Union, get_origin, get_args, Annotated
+import warnings
 
 import forge
+
 from forge import FParameter, sign, FSignature
-from sqlalchemy.testing.plugin.plugin_base import warnings
 
 from mdmodels import DataModel
 from mdmodels.units.unit_definition import UnitDefinition, BaseUnit
@@ -45,7 +46,7 @@ def apply_adder_methods(cls: type[DataModel]):
         method_name = f"add_to_{name}"
         underlying_type = get_args(field.annotation)
 
-        if len(underlying_type) != 1:
+        if len(underlying_type) != 1 or get_origin(underlying_type[0]) is Union:
             warnings.warn(
                 f"Only one type is supported for adder methods. {cls.__name__}.{name} has multiple types. Skipping.",
             )
