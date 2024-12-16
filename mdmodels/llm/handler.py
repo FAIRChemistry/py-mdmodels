@@ -42,7 +42,7 @@ def query_openai(
     api_key: str | None = None,
     llm_model: str = "gpt-4o",
     refine_query: bool = False,
-    previous_data_response: DataModel = None,
+    previous_data_response: DataModel | None = None,
     use_scaffold: bool = True,
 ):
     """
@@ -126,7 +126,12 @@ def create_oai_client(
         "Either provide it or set it as an environment variable 'OPENAI_API_KEY'"
     )
 
+    if base_url:
+        mode = instructor.Mode.JSON
+    else:
+        mode = instructor.Mode.TOOLS_STRICT
+
     return from_openai(
         OpenAI(api_key=api_key, base_url=base_url),
-        mode=instructor.Mode.JSON,
+        mode=mode,
     )
