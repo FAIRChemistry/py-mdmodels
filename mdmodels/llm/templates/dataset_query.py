@@ -20,7 +20,6 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import json
-import os
 
 import rich
 from pydantic import BaseModel, Field, model_validator

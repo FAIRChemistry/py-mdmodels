@@ -22,7 +22,7 @@
 import warnings
 from typing import Optional, List
 
-from mdmodels_core import DataModel # type: ignore
+from mdmodels_core import DataModel  # type: ignore
 from pydantic import create_model
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel, Relationship

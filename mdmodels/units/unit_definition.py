@@ -5,7 +5,7 @@ from typing import Optional
 from xml.dom import minidom
 
 from astropy.units import Unit
-from pydantic_xml import attr, element, BaseXmlModel
+from pydantic_xml import attr, element
 
 from mdmodels.datamodel import DataModel
 

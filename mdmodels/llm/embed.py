@@ -21,14 +21,11 @@
 #  -----------------------------------------------------------------------------
 
 import asyncio
-import os
 from typing import Iterable
 import numpy as np
 from openai import OpenAI
-import rich
 
 from mdmodels.datamodel import DataModel
-from mdmodels.llm.handler import create_oai_client
 
 
 def embedding(
@@ -60,12 +57,13 @@ def embedding(
 
     client = OpenAI(api_key=api_key, base_url=base_url)
 
-
     if not isinstance(dataset, list):
         dataset = [dataset]
 
     if not all(isinstance(dataset, str) for dataset in dataset):
-        dataset = asyncio.run(asyncio.gather(*[_serialize_dataset(dataset) for dataset in dataset]))
+        dataset = asyncio.run(
+            asyncio.gather(*[_serialize_dataset(dataset) for dataset in dataset])
+        )
 
     response = client.embeddings.create(
         input=dataset,
@@ -74,8 +72,10 @@ def embedding(
 
     return np.array([data.embedding for data in response.data])
 
+
 def _serialize_datasets(datasets: Iterable[DataModel]) -> list[str]:
     return [_serialize_dataset(dataset) for dataset in datasets]
+
 
 async def _serialize_dataset(dataset: DataModel | Iterable[DataModel]) -> list[str]:
     return dataset.model_dump_json(exclude_none=True)
