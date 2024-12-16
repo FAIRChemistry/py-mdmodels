@@ -1,0 +1,26 @@
+{
+    "name": "Test",
+    "to_reference": [
+        "some_reference"
+    ],
+    "number": 1.0,
+    "single_object": {
+        "reference": "some_reference",
+        "names": [
+            "name1",
+            "name2"
+        ],
+        "number": null
+    },
+    "nested_array": [
+        {
+            "reference": "some_reference",
+            "names": [
+                "name1",
+                "name2"
+            ],
+            "number": null
+        }
+    ],
+    "ontology": "https://amigo.geneontology.org/amigo/term/"
+}

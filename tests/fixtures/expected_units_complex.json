@@ -1,0 +1,33 @@
+{
+    "single_unit": {
+        "id": "mg / (l s mol2)",
+        "name": "mg / (l s mol2)",
+        "base_units": [
+            {
+                "kind": "gram",
+                "exponent": 1,
+                "multiplier": 1.0,
+                "scale": -3.0
+            },
+            {
+                "kind": "litre",
+                "exponent": -1,
+                "multiplier": 1.0,
+                "scale": 0.0
+            },
+            {
+                "kind": "second",
+                "exponent": -1,
+                "multiplier": 1.0,
+                "scale": 0.0
+            },
+            {
+                "kind": "mole",
+                "exponent": -2,
+                "multiplier": 1.0,
+                "scale": 0.0
+            }
+        ]
+    },
+    "multiple_units": []
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<Test name="Test" number="1.0">
+  <to_reference>some_reference</to_reference>
+  <Nested>
+    <reference>some_reference</reference>
+    <name>name1</name>
+    <name>name2</name>
+  </Nested>
+  <NestedArray>
+    <reference>some_reference</reference>
+    <name>name1</name>
+    <name>name2</name>
+  </NestedArray>
+  <ontology>https://amigo.geneontology.org/amigo/term/</ontology>
+</Test>

@@ -1,0 +1,46 @@
+{
+    "single_unit": {
+        "id": "mg",
+        "name": "mg",
+        "base_units": [
+            {
+                "kind": "gram",
+                "exponent": 1,
+                "multiplier": 1.0,
+                "scale": -3.0
+            }
+        ]
+    },
+    "multiple_units": [
+        {
+            "id": "g",
+            "name": "g",
+            "base_units": [
+                {
+                    "kind": "gram",
+                    "exponent": 1,
+                    "multiplier": 1.0,
+                    "scale": 0.0
+                }
+            ]
+        },
+        {
+            "id": "mmol / l",
+            "name": "mmol / l",
+            "base_units": [
+                {
+                    "kind": "mole",
+                    "exponent": 1,
+                    "multiplier": 1.0,
+                    "scale": -3.0
+                },
+                {
+                    "kind": "litre",
+                    "exponent": -1,
+                    "multiplier": 1.0,
+                    "scale": 0.0
+                }
+            ]
+        }
+    ]
+}
