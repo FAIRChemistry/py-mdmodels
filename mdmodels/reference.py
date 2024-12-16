@@ -78,6 +78,7 @@ class ReferenceContext(BaseModel):
         Args:
             json_rep (dict): The JSON representation to extract values from.
         """
+
         self.source_vals, self.target_vals = await asyncio.gather(
             jsonpath.findall_async(self.source_path, json_rep),
             jsonpath.findall_async(self.target_path, json_rep),
@@ -90,6 +91,10 @@ class ReferenceContext(BaseModel):
         Returns:
             list: A list of validation results for each source value.
         """
+
+        if not self.target_vals:
+            return []
+
         return [
             self._validate_single(source_value) for source_value in self.source_vals
         ]
@@ -104,6 +109,7 @@ class ReferenceContext(BaseModel):
         Returns:
             InitErrorDetails | None: The error details if the validation fails, otherwise None.
         """
+
         if source_value not in self.target_vals:
             error_type = PydanticCustomError(
                 "Invalid Reference",
