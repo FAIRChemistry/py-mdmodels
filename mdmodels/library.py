@@ -124,7 +124,7 @@ class Library(DottedDict):
             is_array (bool): Whether the attribute is an array.
             is_identifier (bool): Whether the attribute is an identifier.
         """
-        enums = [en.name for en in self._rust_model.model.enums] # type: ignore
+        enums = [en.name for en in self._rust_model.model.enums]  # type: ignore
 
         if source_type in enums or target_type in enums:
             return
@@ -211,7 +211,7 @@ class Library(DottedDict):
             dict: A dictionary where keys are table names and values are markdown representations of the tables.
         """
         tables = {}
-        for obj in self._rust_model.model.objects: # type: ignore
+        for obj in self._rust_model.model.objects:  # type: ignore
             table = [
                 {
                     "name": attr.name,
