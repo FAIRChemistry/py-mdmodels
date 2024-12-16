@@ -26,6 +26,11 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Pull Ollama model
+        run: |
+          curl http://localhost:11434/api/pull -d '{
+            "model": "gemma2:2b"
+          }'
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
@@ -43,6 +48,8 @@ jobs:
           NEO4J_PASSWORD: your_password
           NEO4J_HOST: localhost
           NEO4J_PORT: 7687
+          OLLAMA_HOST: "http://localhost:11434/v1"
+          OLLAMA_MODEL: "gemma2:2b"
         run: |
           python3 -m poetry run pytest
 
@@ -54,3 +61,7 @@ jobs:
           - 7687:7687
         env:
           NEO4J_AUTH: neo4j/your_password
+      ollama:
+        image: ollama/ollama:latest
+        ports:
+          - 11434:11434
