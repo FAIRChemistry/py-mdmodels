@@ -20,17 +20,18 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
+import copy
 import pathlib
 from enum import Enum
 from functools import partial
-from typing import Any, Annotated, ForwardRef
+from typing import Any, Annotated, ForwardRef, Union
 
 import httpx
 import validators
-from mdmodels_core import DataModel as RSDataModel
+from mdmodels_core import DataModel as RSDataModel  # type: ignore
 from pydantic import BeforeValidator
 from pydantic_core.core_schema import ValidationInfo
-from pydantic_xml import create_model, attr, element
+from pydantic_xml import RootXmlModel, create_model, attr, element, wrapped
 
 from mdmodels.adder_method import apply_adder_methods
 from mdmodels.datamodel import DataModel
@@ -48,6 +49,36 @@ TYPE_MAPPING = {
     "boolean": bool,
     "number": float,
     "date": str,
+    "bytes": bytes,
+}
+
+
+class StringElement(RootXmlModel):
+    root: str
+
+
+class FloatElement(RootXmlModel):
+    root: float
+
+
+class BooleanElement(RootXmlModel):
+    root: bool
+
+
+class IntegerElement(RootXmlModel):
+    root: int
+
+
+class BytesElement(RootXmlModel):
+    root: bytes
+
+
+BASIC_TYPE_ELEMENTS = {
+    str: StringElement,
+    float: FloatElement,
+    bool: BooleanElement,
+    int: IntegerElement,
+    bytes: BytesElement,
 }
 
 
@@ -91,7 +122,7 @@ def build_module(
             continue
 
         py_type = build_type(dm, rs_type, module)
-        py_type.__mdmodels__.path_factory = path_factory
+        py_type.__mdmodels__.path_factory = path_factory  # type: ignore
 
         module[rs_type.name] = py_type
 
@@ -113,6 +144,7 @@ def init_data_model(path):
     Returns:
         RSDataModel: The initialized data model.
     """
+
     if validators.url(path):
         content = httpx.get(path).text
         return RSDataModel.from_markdown_string(content)
@@ -143,27 +175,41 @@ def build_type(
 
     for attribute in rs_type.attributes:
         params = {}
-        dtype = get_dtype(attribute, dm, py_types, rs_type.name)
+        dtypes = []
 
-        if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):
-            module.add_cross_connection(
-                source_type=rs_type.name,
-                source_attr=attribute.name,
-                target_type=dtype.__name__,
-                is_array=attribute.is_array,
-            )
+        for dtype in attribute.dtypes:
+            dtype = get_dtype(dtype, dm, py_types, rs_type.name)
 
-            if hasattr(dtype, "__recursive__"):
-                dtype = ForwardRef(dtype.__name__)
-                forward_refs.append(dtype)
+            if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):
+                module.add_cross_connection(
+                    source_type=rs_type.name,
+                    source_attr=attribute.name,
+                    target_type=dtype.__name__,
+                    is_array=attribute.is_array,
+                )
 
-            before_validator = partial(
-                _check_type_compliance,
-                cls=dtype,  # type: ignore
-                py_types=py_types,  # type: ignore
-            ) 
+                if hasattr(dtype, "__recursive__"):
+                    dtype = ForwardRef(dtype.__name__)
+                    forward_refs.append(dtype)
 
-            dtype = Annotated[dtype, BeforeValidator(before_validator)]  # type: ignore
+                before_validator = partial(
+                    _check_type_compliance,
+                    cls=dtype,  # type: ignore
+                    py_types=py_types,  # type: ignore
+                )
+
+                dtype = Annotated[dtype, BeforeValidator(before_validator)]  # type: ignore
+
+            dtypes.append(dtype)
+
+        dtypes = _set_custom_tags(attribute, dtypes)
+
+        if len(dtypes) > 1:
+            dtype = Union[tuple(dtypes)]  # type: ignore
+        elif len(dtypes) == 0:
+            raise ValueError(f"No data type found for attribute {attribute.name}")
+        else:
+            dtype = dtypes[0]
 
         if attribute.is_array:
             dtype = list[dtype]
@@ -174,21 +220,12 @@ def build_type(
         params["default"] = _get_default(attribute.default)
 
         if not attribute.required and not attribute.is_array:
-            dtype = dtype | None
+            dtype = dtype | None  # type: ignore
         elif not attribute.required and attribute.is_array:
             params["default_factory"] = list
             del params["default"]
 
-        if attribute.xml.is_attr:
-            attrs[attribute.name] = (
-                dtype,
-                attr(
-                    name=attribute.xml.name,
-                    **params,
-                ),
-            )
-        else:
-            attrs[attribute.name] = (dtype, element(tag=attribute.xml.name, **params))
+        attrs[attribute.name] = _process_xml_attribute(attribute, dtype, params)
 
     model = create_model(
         rs_type.name,
@@ -205,6 +242,103 @@ def build_type(
     return model
 
 
+def _process_xml_attribute(attribute, dtype, params: dict) -> tuple[type, Any]:
+    """
+    Process an XML attribute and update the attrs dictionary.
+
+    Args:
+        attribute: The attribute to process.
+        dtype: The data type of the attribute.
+        params: Additional parameters for the attribute.
+
+    Returns:
+        Tuple[type, Any]: The processed attribute.
+    """
+    if attribute.xml.is_attr:
+        assert not _is_wrapped_xml(
+            attribute.xml.name
+        ), "Wrapped XML is not allowed to be an attribute"
+        return (
+            dtype,
+            attr(
+                name=attribute.xml.name,
+                **params,
+            ),
+        )
+    elif _is_wrapped_xml(attribute.xml.name):
+        *path, name = attribute.xml.name.split("/")
+        return (dtype, wrapped("/".join(path), element(tag=name, **params)))
+    elif _is_multiple_xml(attribute.xml.name):
+        return (dtype, element(**params))
+    else:
+        return (dtype, element(tag=attribute.xml.name, **params))
+
+
+def _set_custom_tags(attribute, dtypes):
+    """
+    Set custom XML tags for the given attribute and data types.
+
+    This function processes the XML name of the attribute to determine if it
+    contains multiple or wrapped XML elements. It then assigns custom XML tags
+    to the data types based on the parsed names.
+
+    Args:
+        attribute: The attribute containing the XML name to process.
+        dtypes: A list of data types to which custom XML tags will be assigned.
+
+    Returns:
+        list: A list of data types with assigned custom XML tags.
+    """
+    new_dtypes = []
+    if _is_multiple_xml(attribute.xml.name):
+        paths = [p.strip() for p in attribute.xml.name.split(",")]
+
+        if _is_wrapped_xml(attribute.xml.name):
+            names = [p.split("/")[-1] for p in paths]
+        else:
+            names = paths
+
+        for dtype, name in zip(dtypes, names):
+            if dtype in BASIC_TYPE_ELEMENTS:
+                dtype = copy.copy(BASIC_TYPE_ELEMENTS[dtype])
+                dtype.__xml_tag__ = name
+                new_dtypes.append(dtype)
+            else:
+                dtype = copy.copy(dtype)
+                dtype.__xml_tag__ = name
+                new_dtypes.append(dtype)
+    else:
+        return dtypes
+
+    return new_dtypes
+
+
+def _is_multiple_xml(name: str):
+    """
+    Check if the XML name contains multiple elements.
+
+    Args:
+        name (str): The XML name to check.
+
+    Returns:
+        bool: True if the name contains multiple elements, False otherwise.
+    """
+    return len(name.split(",")) > 1
+
+
+def _is_wrapped_xml(name: str):
+    """
+    Check if the XML name is wrapped, indicating a nested structure.
+
+    Args:
+        name (str): The XML name to check.
+
+    Returns:
+        bool: True if the name is wrapped, False otherwise.
+    """
+    return len(name.split("/")) > 1
+
+
 def _extract_references(obj):
     """Extract attribute references from an object.
 
@@ -217,15 +351,15 @@ def _extract_references(obj):
         List[str]: A list of references.
     """
 
-    for attr in obj.attributes:
-        if ref := extract_option(attr, "references"):
-            _create_ref_context(attr, obj, ref)
+    for attribute in obj.attributes:
+        if ref := extract_option(attribute, "references"):
+            _create_ref_context(attribute, obj, ref)
 
             # Add cross connection for DB schemes
             tbl, col = path_factory.get_attr_type_by_dot(ref)
             module.add_cross_connection(
                 source_type=obj.name,
-                source_attr=attr.name,
+                source_attr=attribute.name,
                 target_type=tbl,
                 target_attr=col,
                 is_identifier=True,
@@ -283,7 +417,7 @@ def _get_default(default):
 
 
 def get_dtype(
-    attribute,
+    dtype: str,
     dm: RSDataModel,
     py_types: dict,
     rs_type_name: str,
@@ -292,18 +426,17 @@ def get_dtype(
     Get the Python data type for an attribute.
 
     Args:
-        attribute: The attribute.
+        dtype: The data type.
         dm (RSDataModel): The data model.
         py_types (dict): Dictionary of Python units.
         rs_type_name (str): The name of the data model type.
     Returns:
         type: The Python data type.
     """
-    dtype = attribute.dtypes[0]
 
     if dtype == rs_type_name:
         return type(rs_type_name, (DataModel,), {"__recursive__": True})
-    
+
     if dtype in TYPE_MAPPING:
         return TYPE_MAPPING[dtype]
     elif dtype == "UnitDefinition":
