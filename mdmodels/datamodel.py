@@ -26,7 +26,7 @@ from typing import get_args, Any, get_origin, Coroutine
 from xml.dom import minidom
 
 import jsonpath
-from bigtree import nested_dict_to_tree
+from bigtree import nested_dict_to_tree  # type: ignore
 from pydantic import model_validator, ValidationError
 from pydantic_core import InitErrorDetails
 from pydantic_xml import BaseXmlModel
@@ -41,7 +41,11 @@ from .meta import DataModelMeta
 from .reference import ReferenceContext
 
 
-class DataModel(BaseXmlModel, metaclass=DataModelMeta):
+class DataModel(
+    BaseXmlModel,
+    metaclass=DataModelMeta,
+    search_mode="unordered",
+):
     """
     A class to represent a data model with various utility methods.
     """
@@ -71,7 +75,7 @@ class DataModel(BaseXmlModel, metaclass=DataModelMeta):
         Raises:
             ValidationError: If any validation errors are found.
         """
-        ctx = self.__class__.__mdmodels__.reference_paths
+        ctx = self.__class__.__mdmodels__.reference_paths  # type: ignore
 
         if not ctx:
             return self
@@ -173,59 +177,6 @@ class DataModel(BaseXmlModel, metaclass=DataModelMeta):
                 return key
 
         return ""
-
-    @classmethod
-    def meta_tree(cls):
-        """
-        Generate and display a tree representation of the data model's metadata.
-
-        Returns:
-            str: An empty string (the tree is displayed using the `show` method).
-        """
-        tree = nested_dict_to_tree(cls._construct_tree())
-        tree.show(attr_list=["type"])
-        return ""
-
-    @classmethod
-    def _construct_tree(cls):
-        """
-        Construct a nested dictionary representing the data model's structure.
-
-        Returns:
-            dict: A dictionary representing the data model's structure.
-        """
-        children = list()
-
-        for key, field in cls.model_fields.items():
-            if dtypes := get_args(field.annotation):
-                dtype = dtypes[0]
-            else:
-                dtype = field.annotation
-
-            is_multiple = get_origin(field.annotation) is list
-            is_optional = field.default is None
-
-            attr_name = key
-
-            if is_multiple:
-                attr_name = attr_name + "[]"
-            elif not is_optional:
-                attr_name = attr_name + "*"
-
-            child = {
-                "name": attr_name,
-                "type": dtype.__name__,
-                "multiple": is_multiple,
-                "optional": is_optional,
-            }
-
-            if issubclass(dtype, BaseXmlModel):
-                child["children"] = [dtype.construct_tree()]
-                del [child["type"]]
-
-            children.append(child)
-
-        return {"name": cls.__name__, "children": children}
 
     @classmethod
     def from_markdown(cls, path: Path | str) -> Library:
