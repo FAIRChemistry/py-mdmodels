@@ -6,6 +6,11 @@ on:
       - "mdmodels/**"
       - "tests/**"
       - "pyproject.toml"
+  pull_request:
+    paths:
+      - "mdmodels/**"
+      - "tests/**"
+      - "pyproject.toml"
 
 jobs:
   build:
