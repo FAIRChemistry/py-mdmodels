@@ -20,11 +20,12 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 from sqlmodel import Session, SQLModel
 from mdmodels.datamodel import DataModel
 from mdmodels.library import CrossConnection, Library
+from mdmodels.sql.base import SQLBase
 
 
 def insert_nested(
@@ -45,12 +46,33 @@ def insert_nested(
     Returns:
         List[SQLModel]: A list of SQLModel instances representing the inserted data.
     """
+    return asyncio.run(insert_nested_async(data, library, session, models))
+
+
+async def insert_nested_async(
+    data: DataModel | List[DataModel],
+    library: Library,
+    session: Session,
+    models: Library,
+) -> List[SQLModel]:
+    """
+    Insert one or multiple DataModel instances into the database asynchronously.
+
+    Args:
+        data (DataModel | List[DataModel]): The data model instance(s) to insert.
+        library (Library): The library providing object connections.
+        session (Session): The active database session.
+        models (Library): A library containing model classes.
+
+    Returns:
+        List[SQLModel]: A list of SQLModel instances representing the inserted data.
+    """
     if not isinstance(data, list):
         data = [data]
 
     tasks = [_to_sqlmodel(item, library, session, models) for item in data]
 
-    return asyncio.run(asyncio.gather(*tasks))  # type: ignore
+    return await asyncio.gather(*tasks)  # type: ignore
 
 
 async def _to_sqlmodel(
@@ -157,7 +179,7 @@ async def _create_or_fetch_object(
         session (Session): The active database session.
         models (Library): A library containing model classes.
     """
-    pk = _get_primary_key(models[type(value).__name__])
+    pk = get_primary_key(models[type(value).__name__])
 
     if not _pk_exists(value, pk):
         return await _to_sqlmodel(value, library, session, models)  # type: ignore
@@ -204,7 +226,7 @@ def attr_connected_to(attr: str, connections: List[Any]) -> Optional[Any]:
     return next((c for c in connections if c.source_attr == attr), None)
 
 
-def _get_primary_key(table: SQLModel) -> str:
+def get_primary_key(table: Type[SQLBase]) -> str:
     """
     Get the primary key of a SQLModel table.
     """
