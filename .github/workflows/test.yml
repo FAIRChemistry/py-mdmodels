@@ -1,0 +1,43 @@
+name: Library Tests
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install poetry
+          poetry install --with dev,sql,graph
+      - name: Test with pytest
+        env:
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: your_password
+          NEO4J_HOST: localhost
+          NEO4J_PORT: 7687
+        run: |
+          python3 -m poetry run pytest
+
+    services:
+      neo4j:
+        image: neo4j:latest
+        ports:
+          - 7474:7474
+          - 7687:7687
+        env:
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: your_password
+          NEO4J_HOST: localhost
+          NEO4J_PORT: 7687
