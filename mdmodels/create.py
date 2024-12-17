@@ -234,7 +234,7 @@ def build_type(
     )
 
     for ref in forward_refs:
-        ref._evaluate(py_types, py_types, set())
+        ref._evaluate(py_types, py_types, recursive_guard=set())
 
     _extract_references(rs_type)
     apply_adder_methods(model)
@@ -491,7 +491,7 @@ def _check_type_compliance(
     if not hasattr(value, "model_fields"):
         return value
     if isinstance(cls, ForwardRef):
-        cls = cls._evaluate(py_types, py_types, set())  # type: ignore
+        cls = cls._evaluate(py_types, py_types, recursive_guard=set())  # type: ignore
     if type(value).__name__ == cls.__name__:  # type: ignore
         return cls(**value.model_dump())  # type: ignore
 
