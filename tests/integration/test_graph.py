@@ -1,11 +1,12 @@
 import os
-
+import pytest
 from neomodel import db
 
 from mdmodels.graph import connect_to_neo4j, generate_neomodel
 
 
 class TestGraph:
+    @pytest.mark.expensive
     def test_queries(self):
         """
         Test the creation and relationship of graph entities in the database.

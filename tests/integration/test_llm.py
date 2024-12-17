@@ -1,8 +1,11 @@
 import os
+import pytest
+
 from mdmodels import DataModel, llm
 
 
 class TestLLM:
+    @pytest.mark.expensive
     def test_llm(self):
         # Arrange
         OLLAMA_HOST = os.getenv("OLLAMA_HOST")
