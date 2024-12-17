@@ -29,6 +29,7 @@ sqlmodel = { version = "^0.0.22", optional = true }
 chat = ["instructor", "openai", "tabulate"]
 graph = ["neomodel"]
 sql = ["sqlmodel"]
+dev = ["pytest-httpx", "pytest-cov"]
 
 [tool.poetry.group.chat.dependencies]
 instructor = "^1.7.0"
