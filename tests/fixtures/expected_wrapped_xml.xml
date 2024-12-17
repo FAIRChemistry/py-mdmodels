@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<WrappedXML>
+  <ListOfSomeXML>
+    <MultiPart someField="some_field_1">
+      <SomeElement>some_element_1</SomeElement>
+    </MultiPart>
+    <MultiPart someField="some_field_2">
+      <SomeElement>some_element_2</SomeElement>
+    </MultiPart>
+  </ListOfSomeXML>
+  <SingleXML>
+    <Part someField="some_field_3">
+      <SomeElement>some_element_3</SomeElement>
+    </Part>
+  </SingleXML>
+</WrappedXML>
