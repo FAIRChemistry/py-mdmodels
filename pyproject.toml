@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mdmodels"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python package for the MDModels Rust crate"
 authors = ["Jan Range <range.jan@web.de>"]
 readme = "README.md"
