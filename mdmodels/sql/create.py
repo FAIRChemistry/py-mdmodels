@@ -55,7 +55,7 @@ def generate_sqlmodel(
         base_classes = []
 
     primary_keys = {}
-    model = data_model._rust_model.model  # noqa
+    model = data_model._rust_model.model  # type: ignore
     enums = [enum.name for enum in model.enums]
 
     foreign_keys = extract_foreign_keys(data_model)
@@ -111,7 +111,7 @@ def _init_model(content, data_model, path):
     elif data_model and isinstance(data_model, DataModel):
         data_model = data_model
 
-    return data_model.model, data_model
+    return data_model.model, data_model  # type: ignore
 
 
 def _process_object(
@@ -120,7 +120,7 @@ def _process_object(
     obj: DataModel,
     base_classes: List[type],
     primary_key: str | None,
-    foreign_keys: dict[str, (str, str)],
+    foreign_keys: dict[str, tuple[str, str]],
 ) -> None:
     """
     Process an object and add it to the models dictionary.
@@ -157,10 +157,10 @@ def _process_object(
 
     model = create_model(
         obj.name,
-        __base__=tuple([SQLBase, *base_classes]),
+        __base__=tuple([SQLBase, *base_classes]),  # type: ignore
         __cls_kwargs__={"table": True},
         **field_definitions,
-    )
+    )  # type: ignore
 
     model.__table_args__ = UniqueConstraint(
         *[field for field in field_definitions.keys() if field != "id"],
@@ -262,8 +262,7 @@ def _create_simple_attr(
     """
     if attr.is_array:
         warnings.warn(
-            f"Array of simple units not supported."
-            f"Skipping attribute '{attr.name}'.",
+            f"Array of simple units not supported.Skipping attribute '{attr.name}'.",
         )
 
         return
@@ -391,7 +390,7 @@ def _extract_links(
                     source_type=obj.name,
                     source_field=attr.name,
                     target_type=dtype,
-                    **local_extra_params,
+                    **local_extra_params,  # type: ignore
                 )
             )
 
