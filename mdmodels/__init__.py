@@ -24,6 +24,8 @@ from mdmodels_core import Templates  # noqa
 
 from .datamodel import DataModel
 
+__version__ = "0.2.0"
+
 
 def patch_nest_asyncio():
     nest_asyncio.apply()

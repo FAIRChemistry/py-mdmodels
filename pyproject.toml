@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "mdmodels"
-version = "0.1.1"
+version = "0.2.0"
 description = "Python package for the MDModels Rust crate"
 authors = ["Jan Range <range.jan@web.de>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-mdmodels-core = "^0.1.8"
+mdmodels-core = "^0.2.2"
 pydantic-xml = "^2.12.1"
 bigtree = "^0.21.1"
 validators = "^0.34.0"
