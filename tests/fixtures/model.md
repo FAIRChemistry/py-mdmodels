@@ -38,6 +38,7 @@ nsmap:
 - reference
   - Type: string
   - References: Test.to_reference
+  - Regex: ^[a-z]+$
 - names
   - Type: string[]
   - Term: schema:hello
