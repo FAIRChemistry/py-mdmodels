@@ -149,13 +149,13 @@ def extract_primary_keys(model, primary_keys):
         pk_fields = [
             (attr.name, TYPE_MAPPING[attr.dtypes[0]])
             for attr in obj.attributes
-            if any(opt.key.lower() in PK_KEYS for opt in attr.options)
+            if any(opt.k().lower() in PK_KEYS for opt in attr.options)
             or attr.name == "id"
         ]
 
-        assert (
-            len(pk_fields) <= 1
-        ), f"Multiple primary keys found for object '{obj.name}'."
+        assert len(pk_fields) <= 1, (
+            f"Multiple primary keys found for object '{obj.name}'."
+        )
 
         if pk_fields:
             primary_keys[obj.name] = pk_fields[0]

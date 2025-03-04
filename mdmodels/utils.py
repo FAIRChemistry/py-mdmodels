@@ -36,7 +36,7 @@ def extract_option(attr, names: str | list[str]):
     if isinstance(names, str):
         names = [names]
 
-    return next((opt.value for opt in attr.options if opt.key.lower() in names), None)
+    return next((opt.v() for opt in attr.options if opt.k().lower() in names), None)
 
 
 def extract_dtype(dtype):
