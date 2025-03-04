@@ -254,10 +254,11 @@ def _process_xml_attribute(attribute, dtype, params: dict) -> tuple[type, Any]:
     Returns:
         Tuple[type, Any]: The processed attribute.
     """
+
     if attribute.xml.is_attr:
-        assert not _is_wrapped_xml(
-            attribute.xml.name
-        ), "Wrapped XML is not allowed to be an attribute"
+        assert not _is_wrapped_xml(attribute.xml.name), (
+            "Wrapped XML is not allowed to be an attribute"
+        )
         return (
             dtype,
             attr(
@@ -265,9 +266,10 @@ def _process_xml_attribute(attribute, dtype, params: dict) -> tuple[type, Any]:
                 **params,
             ),
         )
-    elif _is_wrapped_xml(attribute.xml.name):
-        *path, name = attribute.xml.name.split("/")
-        return (dtype, wrapped("/".join(path), element(tag=name, **params)))
+    elif hasattr(attribute.xml, "wrapped"):
+        path = "/".join(attribute.xml.wrapped)
+        name = attribute.xml.name
+        return (dtype, wrapped(path, element(tag=name, **params)))
     elif _is_multiple_xml(attribute.xml.name):
         return (dtype, element(**params))
     else:
