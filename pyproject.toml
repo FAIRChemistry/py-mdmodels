@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-mdmodels-core = "^0.2.3"
+mdmodels-core = "^0.2.4"
 pydantic-xml = "^2.12.1"
 bigtree = "^0.21.1"
 validators = "^0.34.0"
