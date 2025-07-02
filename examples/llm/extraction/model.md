@@ -51,7 +51,7 @@ This object represents a chemical project and serves as the top-level container 
 - title
   - Type: string
   - Description: The name/title of the project.
-  - PK: True
+  - PK: true
 - molecules
   - Type: [Molecule](#molecule)[]
   - Description: The molecules used in the project.

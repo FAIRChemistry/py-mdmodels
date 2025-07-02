@@ -48,84 +48,84 @@ research project. It organizes the project's title, associated molecules, reacti
 structured overview of the entire chemical workflow.
 
 - title
-    - Type: string
-    - Description: The name/title of the project.
-    - PK: True
+  - Type: string
+  - Description: The name/title of the project.
+  - PK: true
 - molecules
-    - Type: [Molecule](#molecule)[]
-    - Description: The molecules used in the project.
+  - Type: [Molecule](#molecule)[]
+  - Description: The molecules used in the project.
 - reactions
-    - Type: [Reaction](#reaction)[]
-    - Description: The reactions in the project.
+  - Type: [Reaction](#reaction)[]
+  - Description: The reactions in the project.
 - experiments
-    - Type: [Experiment](#experiment)[]
-    - Description: The experiments in the project.
+  - Type: [Experiment](#experiment)[]
+  - Description: The experiments in the project.
 
 ---
 
 ### Molecule
 
 - id
-    - Type: string
-    - Description: The identifier of the molecule.
+  - Type: string
+  - Description: The identifier of the molecule.
 - name
-    - Type: string
-    - Description: The name of the molecule.
-    - Default: Lel
+  - Type: string
+  - Description: The name of the molecule.
+  - Default: Lel
 - formula
-    - Type: string
-    - Description: The formula of the molecule.
+  - Type: string
+  - Description: The formula of the molecule.
 
 ---
 
 ### Experiment
 
 - id
-    - Type: string
-    - Description: The identifier of the experiment.
+  - Type: string
+  - Description: The identifier of the experiment.
 - initial_concentrations
-    - Type: [Concentration](#concentration)[]
-    - Description: The initial concentrations of the molecules in the experiment.
+  - Type: [Concentration](#concentration)[]
+  - Description: The initial concentrations of the molecules in the experiment.
 
 ---
 
 ### Concentration
 
 - molecule_id
-    - Type: string
-    - Description: The identifier of the molecule.
-    - References: ChemicalProject.molecules.id
+  - Type: string
+  - Description: The identifier of the molecule.
+  - References: ChemicalProject.molecules.id
 - value
-    - Type: number
-    - Description: The concentration of the molecule.
+  - Type: number
+  - Description: The concentration of the molecule.
 - unit
-    - Type: string
-    - Description: The unit of the concentration.
+  - Type: string
+  - Description: The unit of the concentration.
 
 ---
 
 ### Reaction
 
 - id
-    - Type: string
-    - Description: The identifier of the reaction.
+  - Type: string
+  - Description: The identifier of the reaction.
 - name
-    - Type: string
-    - Description: The name of the reaction.
+  - Type: string
+  - Description: The name of the reaction.
 - educts
-    - Type: [Molecule](#molecule)[]
-    - Description: The reactants of the reaction.
+  - Type: [Molecule](#molecule)[]
+  - Description: The reactants of the reaction.
 - products
-    - Type: [Molecule](#molecule)[]
-    - Description: The products of the reaction.
+  - Type: [Molecule](#molecule)[]
+  - Description: The products of the reaction.
 
 ---
 
 ### Element
 
 - molecule_id
-    - Type: string
-    - Description: The identifier of the molecule.
+  - Type: string
+  - Description: The identifier of the molecule.
 - stoichiometry
-    - Type: number
-    - Description: The stoichiometry of the reactant.
+  - Type: number
+  - Description: The stoichiometry of the reactant.
