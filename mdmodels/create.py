@@ -85,6 +85,7 @@ BASIC_TYPE_ELEMENTS = {
 def build_module(
     path: pathlib.Path | str | None = None,
     data_model: RSDataModel | None = None,
+    ignore_attributes: list[str] = [],
 ) -> Library:
     """
     Create a data model module from a markdown file.
@@ -121,7 +122,7 @@ def build_module(
             module[rs_type.name].__mdmodels__.path_factory = path_factory
             continue
 
-        py_type = build_type(dm, rs_type, module)
+        py_type = build_type(dm, rs_type, module, ignore_attributes=ignore_attributes)
         py_type.__mdmodels__.path_factory = path_factory  # type: ignore
 
         module[rs_type.name] = py_type
@@ -160,6 +161,7 @@ def build_type(
     dm: RSDataModel,
     rs_type,
     py_types: dict,
+    ignore_attributes: list[str] = [],
 ):
     """
     Build a Python type from a data model type.
@@ -174,11 +176,15 @@ def build_type(
     attrs = {}
 
     for attribute in rs_type.attributes:
+        # Skip ignored attributes
+        if attribute.name in ignore_attributes:
+            continue
+            
         params = {}
         dtypes = []
 
         for dtype in attribute.dtypes:
-            dtype = get_dtype(dtype, dm, py_types, rs_type.name)
+            dtype = get_dtype(dtype, dm, py_types, rs_type.name, ignore_attributes)
 
             if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):
                 module.add_cross_connection(
@@ -236,7 +242,7 @@ def build_type(
     for ref in forward_refs:
         ref._evaluate(py_types, py_types, recursive_guard=set())
 
-    _extract_references(rs_type)
+    _extract_references(rs_type, ignore_attributes)
     apply_adder_methods(model)
 
     return model
@@ -341,19 +347,23 @@ def _is_wrapped_xml(name: str):
     return len(name.split("/")) > 1
 
 
-def _extract_references(obj):
+def _extract_references(obj, ignore_attributes: list[str] = []):
     """Extract attribute references from an object.
 
     References are used for cross-referencing objects in the data model.
 
     Args:
         obj: The object to extract references from.
+        ignore_attributes: List of attribute names to ignore.
 
     Returns:
         List[str]: A list of references.
     """
 
     for attribute in obj.attributes:
+        # Skip ignored attributes
+        if attribute.name in ignore_attributes:
+            continue
         if ref := extract_option(attribute, "references"):
             _create_ref_context(attribute, obj, ref)
 
@@ -423,6 +433,7 @@ def get_dtype(
     dm: RSDataModel,
     py_types: dict,
     rs_type_name: str,
+    ignore_attributes: list[str] = [],
 ):
     """
     Get the Python data type for an attribute.
@@ -446,7 +457,7 @@ def get_dtype(
     elif dtype in py_types:
         return py_types[dtype]
     elif sub_obj := next((o for o in dm.model.objects if o.name == dtype), None):
-        py_types[dtype] = build_type(dm, sub_obj, py_types)
+        py_types[dtype] = build_type(dm, sub_obj, py_types, ignore_attributes=ignore_attributes)
         return py_types[dtype]
     elif enum_obj := next((o for o in dm.model.enums if o.name == dtype), None):
         py_types[dtype] = build_enum(enum_obj, py_types)

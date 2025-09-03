@@ -19,15 +19,20 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
+from __future__ import annotations
+
 from enum import Enum
+from typing import Generator, Type
 
 import pandas as pd
 from dotted_dict import DottedDict
 from mdmodels_core import DataModel as RSDataModel  # type: ignore
 from pydantic import BaseModel
 
+from mdmodels.meta import DataModelMeta
 from mdmodels.path import PathFactory
 from mdmodels.utils import extract_object, extract_option
+
 
 PK_KEYS = ["pk", "primary_key", "primary key", "primarykey"]
 SQL_TYPE_MAPPING = {
@@ -224,3 +229,14 @@ class Library(DottedDict):
             ]
             tables[obj.name] = pd.DataFrame(table).to_markdown(index=False)
         return tables
+
+    def models(self) -> Generator[tuple[str, Type[BaseModel]], None, None]:
+        """
+        Iterate over the models in the data_model.
+
+        Returns:
+            Generator[tuple[str, DataModelMeta]]: A generator of tuples containing the name and model of each model.
+        """
+        for name, module in self.items():
+            if isinstance(module, DataModelMeta):
+                yield name, module

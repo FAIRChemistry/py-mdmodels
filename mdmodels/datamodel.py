@@ -178,7 +178,11 @@ class DataModel(
         return ""
 
     @classmethod
-    def from_markdown(cls, path: Path | str) -> Library:
+    def from_markdown(
+        cls,
+        path: Path | str,
+        ignore_attributes: list[str] = [],
+    ) -> Library:
         """
         Create a data model from a markdown file.
 
@@ -193,7 +197,7 @@ class DataModel(
         if isinstance(path, Path):
             path = str(path)
 
-        return build_module(path)
+        return build_module(path, ignore_attributes=ignore_attributes)
 
     @classmethod
     def from_github(
@@ -202,6 +206,7 @@ class DataModel(
         spec_path: str,
         branch: str | None = None,
         tag: str | None = None,
+        ignore_attributes: list[str] = [],
     ) -> Library:
         """
         Create a data model from a markdown file hosted on GitHub.
@@ -217,7 +222,10 @@ class DataModel(
         """
         from .create import build_module
 
-        return build_module(create_github_url(branch, repo, spec_path, tag))
+        return build_module(
+            create_github_url(branch, repo, spec_path, tag),
+            ignore_attributes=ignore_attributes,
+        )
 
     def find(self, json_path: str) -> Any | None:
         """
