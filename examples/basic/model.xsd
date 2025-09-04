@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <!-- Roots -->
+    <xs:element name="ChemicalProject" type="ChemicalProjectType"/>
+    <xs:element name="Molecule" type="MoleculeType"/>
+    <xs:element name="Experiment" type="ExperimentType"/>
+    <xs:element name="Concentration" type="ConcentrationType"/>
+    <xs:element name="Reaction" type="ReactionType"/>
+    <xs:element name="Element" type="ElementType"/>
+
+    <!-- ChemicalProject Definition -->
+    <xs:complexType name="ChemicalProjectType">
+        <xs:sequence>
+            <xs:element name="title" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The name/title of the project.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="molecules">
+                <xs:annotation>
+                    <xs:documentation>
+                        The molecules used in the project.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Molecule" type="MoleculeType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="reactions">
+                <xs:annotation>
+                    <xs:documentation>
+                        The reactions in the project.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Reaction" type="ReactionType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="experiments">
+                <xs:annotation>
+                    <xs:documentation>
+                        The experiments in the project.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Experiment" type="ExperimentType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Molecule Definition -->
+    <xs:complexType name="MoleculeType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The identifier of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="name" type="xs:string" default=""Lel"">
+                <xs:annotation>
+                    <xs:documentation>
+                        The name of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="formula" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The formula of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Experiment Definition -->
+    <xs:complexType name="ExperimentType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The identifier of the experiment.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="initial_concentrations">
+                <xs:annotation>
+                    <xs:documentation>
+                        The initial concentrations of the molecules in the experiment.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Concentration" type="ConcentrationType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Concentration Definition -->
+    <xs:complexType name="ConcentrationType">
+        <xs:sequence>
+            <xs:element name="molecule_id" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The identifier of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="value" type="xs:number">
+                <xs:annotation>
+                    <xs:documentation>
+                        The concentration of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="unit" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The unit of the concentration.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Reaction Definition -->
+    <xs:complexType name="ReactionType">
+        <xs:sequence>
+            <xs:element name="id" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The identifier of the reaction.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="name" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The name of the reaction.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="educts">
+                <xs:annotation>
+                    <xs:documentation>
+                        The reactants of the reaction.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Molecule" type="MoleculeType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+            <xs:element name="products">
+                <xs:annotation>
+                    <xs:documentation>
+                        The products of the reaction.
+                    </xs:documentation>
+                </xs:annotation>
+                <xs:complexType>
+                    <xs:sequence>
+                        <xs:element name="Molecule" type="MoleculeType" maxOccurs="unbounded"/>
+                    </xs:sequence>
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Element Definition -->
+    <xs:complexType name="ElementType">
+        <xs:sequence>
+            <xs:element name="molecule_id" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        The identifier of the molecule.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="stoichiometry" type="xs:number">
+                <xs:annotation>
+                    <xs:documentation>
+                        The stoichiometry of the reactant.
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+
+</xs:schema>
