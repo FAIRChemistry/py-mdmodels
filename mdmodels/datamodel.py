@@ -200,6 +200,36 @@ class DataModel(
         return build_module(path, ignore_attributes=ignore_attributes)
 
     @classmethod
+    def from_json_schema(
+        cls,
+        schema: Path | str,
+    ) -> Library:
+        """
+        Create a data model from a JSON schema file.
+        """
+        from .create import build_module
+        from mdmodels_core import DataModel as RSDataModel  # type: ignore
+
+        rs_data_model = RSDataModel.from_json_schema(schema)
+
+        return build_module(data_model=rs_data_model)
+
+    @classmethod
+    def from_json_schema_string(
+        cls,
+        schema: str,
+    ) -> Library:
+        """
+        Create a data model from a JSON schema string.
+        """
+        from .create import build_module
+        from mdmodels_core import DataModel as RSDataModel  # type: ignore
+
+        rs_data_model = RSDataModel.from_json_schema_string(schema)
+
+        return build_module(data_model=rs_data_model)
+
+    @classmethod
     def from_github(
         cls,
         repo: str,
