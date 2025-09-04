@@ -20,8 +20,8 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import nest_asyncio
-from mdmodels_core import Templates  # noqa
 
+from .templates import Templates
 from .datamodel import DataModel
 
 __version__ = "0.2.0"
