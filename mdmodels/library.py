@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, Generator, List, Optional, Type
+from typing import Generator, List, Optional, Type
 
 import pandas as pd
 from dotted_dict import DottedDict
