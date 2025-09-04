@@ -22,7 +22,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Generator, Type
+from typing import Dict, Generator, List, Optional, Type
 
 import pandas as pd
 from dotted_dict import DottedDict
@@ -31,6 +31,7 @@ from pydantic import BaseModel
 
 from mdmodels.meta import DataModelMeta
 from mdmodels.path import PathFactory
+from mdmodels.templates import Templates
 from mdmodels.utils import extract_object, extract_option
 
 
@@ -97,6 +98,20 @@ class Library(DottedDict):
         for cls in self.values():
             if hasattr(cls, "info"):
                 cls.info()
+
+    def convert_to(self, template: Templates, features: Optional[List[str]] = None):
+        """
+        Convert the data_model to a template.
+        """
+        if features is None:
+            features = []
+
+        assert self._rust_model, "Rust model not provided."
+
+        return self._rust_model.convert_to(
+            template.value,
+            {feature: "true" for feature in features},
+        )  # type: ignore
 
     def to_enum(self) -> Enum:
         """
