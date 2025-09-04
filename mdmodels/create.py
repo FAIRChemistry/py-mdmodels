@@ -179,7 +179,7 @@ def build_type(
         # Skip ignored attributes
         if attribute.name in ignore_attributes:
             continue
-            
+
         params = {}
         dtypes = []
 
@@ -261,7 +261,7 @@ def _process_xml_attribute(attribute, dtype, params: dict) -> tuple[type, Any]:
         Tuple[type, Any]: The processed attribute.
     """
 
-    if attribute.xml.is_attr:
+    if attribute.xml is not None and attribute.xml.is_attr:
         assert not _is_wrapped_xml(attribute.xml.name), (
             "Wrapped XML is not allowed to be an attribute"
         )
@@ -276,10 +276,12 @@ def _process_xml_attribute(attribute, dtype, params: dict) -> tuple[type, Any]:
         path = "/".join(attribute.xml.wrapped)
         name = attribute.xml.name
         return (dtype, wrapped(path, element(tag=name, **params)))
-    elif _is_multiple_xml(attribute.xml.name):
+    elif attribute.xml is not None and _is_multiple_xml(attribute.xml.name):
         return (dtype, element(**params))
-    else:
+    elif attribute.xml is not None:
         return (dtype, element(tag=attribute.xml.name, **params))
+    else:
+        return (dtype, element(tag=attribute.name, **params))
 
 
 def _set_custom_tags(attribute, dtypes):
@@ -298,7 +300,7 @@ def _set_custom_tags(attribute, dtypes):
         list: A list of data types with assigned custom XML tags.
     """
     new_dtypes = []
-    if _is_multiple_xml(attribute.xml.name):
+    if attribute.xml is not None and _is_multiple_xml(attribute.xml.name):
         paths = [p.strip() for p in attribute.xml.name.split(",")]
 
         if _is_wrapped_xml(attribute.xml.name):
@@ -457,7 +459,9 @@ def get_dtype(
     elif dtype in py_types:
         return py_types[dtype]
     elif sub_obj := next((o for o in dm.model.objects if o.name == dtype), None):
-        py_types[dtype] = build_type(dm, sub_obj, py_types, ignore_attributes=ignore_attributes)
+        py_types[dtype] = build_type(
+            dm, sub_obj, py_types, ignore_attributes=ignore_attributes
+        )
         return py_types[dtype]
     elif enum_obj := next((o for o in dm.model.enums if o.name == dtype), None):
         py_types[dtype] = build_enum(enum_obj, py_types)
@@ -501,7 +505,7 @@ def _check_type_compliance(
     Returns:
         Any: The validated value.
     """
-    if not hasattr(value, "model_fields"):
+    if not hasattr(value.__class__, "model_fields"):
         return value
     if isinstance(cls, ForwardRef):
         cls = cls._evaluate(py_types, py_types, recursive_guard=set())  # type: ignore
