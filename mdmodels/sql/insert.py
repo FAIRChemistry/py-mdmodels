@@ -237,4 +237,4 @@ def _pk_exists(value: DataModel, pk: str) -> bool:
     """
     Check if a primary key exists in a DataModel instance.
     """
-    return pk in value.model_fields
+    return pk in value.__class__.model_fields
