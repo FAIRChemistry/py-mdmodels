@@ -200,6 +200,29 @@ class DataModel(
         return build_module(path, ignore_attributes=ignore_attributes)
 
     @classmethod
+    def from_markdown_string(
+        cls,
+        content: str,
+        ignore_attributes: list[str] = [],
+    ) -> Library:
+        """
+        Create a data model from a markdown string.
+
+        Args:
+            content (str): The content of the markdown file.
+            ignore_attributes (list[str]): A list of attributes to ignore.
+
+        Returns:
+            Library: A dotted dict containing the generated modules
+
+        Raises:
+            ValueError: If the content is not a valid markdown string.
+        """
+        from .create import build_module
+
+        return build_module(content=content, ignore_attributes=ignore_attributes)
+
+    @classmethod
     def from_json_schema(
         cls,
         schema: Path | str,
