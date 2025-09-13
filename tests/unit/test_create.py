@@ -22,3 +22,15 @@ class TestCreate:
 
         for part in expected_parts:
             assert part in library, f"Part {part} not found in library"
+
+    def test_create_from_string(self):
+        """
+        Test the creation of a data model library from a markdown string.
+        """
+        library = build_module(content=open("./tests/fixtures/model.md").read())
+
+        # Assert
+        expected_parts = ["Test", "Nested", "Ontology"]
+
+        for part in expected_parts:
+            assert part in library, f"Part {part} not found in library"

@@ -84,6 +84,7 @@ BASIC_TYPE_ELEMENTS = {
 
 def build_module(
     path: pathlib.Path | str | None = None,
+    content: str | None = None,
     data_model: RSDataModel | None = None,
     ignore_attributes: list[str] = [],
 ) -> Library:
@@ -92,6 +93,7 @@ def build_module(
 
     Args:
         path (pathlib.Path | str): Path to the markdown file.
+        content (str | None): The content of the markdown file.
         data_model (RSDataModel | None): The data model. If None, it will be initialized from the path.
 
     Returns:
@@ -106,6 +108,8 @@ def build_module(
         dm = data_model
     elif path:
         dm = init_data_model(path)
+    elif content:
+        dm = RSDataModel.from_markdown_string(content)
     else:
         raise ValueError("Either 'path' or 'data_model' must be provided")
 
