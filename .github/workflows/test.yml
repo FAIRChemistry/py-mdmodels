@@ -3,14 +3,14 @@ name: Library Tests
 on:
   push:
     paths:
-      - "mdmodels/**"
-      - "tests/**"
-      - "pyproject.toml"
+      - 'mdmodels/**'
+      - 'tests/**'
+      - 'pyproject.toml'
   pull_request:
     paths:
-      - "mdmodels/**"
-      - "tests/**"
-      - "pyproject.toml"
+      - 'mdmodels/**'
+      - 'tests/**'
+      - 'pyproject.toml'
 
 jobs:
   build:
@@ -18,10 +18,10 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ['3.11', '3.12', '3.13', '3.14']
     steps:
-      - name: "Checkout"
-        uses: "actions/checkout@v4"
+      - name: 'Checkout'
+        uses: 'actions/checkout@v4'
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -48,8 +48,8 @@ jobs:
           NEO4J_PASSWORD: your_password
           NEO4J_HOST: localhost
           NEO4J_PORT: 7687
-          OLLAMA_HOST: "http://localhost:11434/v1"
-          OLLAMA_MODEL: "gemma2:2b"
+          OLLAMA_HOST: 'http://localhost:11434/v1'
+          OLLAMA_MODEL: 'gemma2:2b'
         run: |
           python3 -m poetry run pytest
 

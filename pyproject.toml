@@ -6,7 +6,7 @@ authors = ["Jan Range <range.jan@web.de>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 mdmodels-core = "^0.2.7"
 pydantic-xml = "^2.12.1"
 bigtree = "^0.21.1"
