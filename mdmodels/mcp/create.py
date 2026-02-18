@@ -1,12 +1,16 @@
-from typing import Dict, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Dict, Optional, Union
 
 from fastmcp import FastMCP
 
-from mdmodels.graph.connector import GraphConnector
 from mdmodels.mcp.config import MCPConfig
-from mdmodels.sql.connector import DatabaseConnector
 
 from .sql import create_sql_mcp_tools
+
+if TYPE_CHECKING:
+    from mdmodels.graph.connector import GraphConnector
+    from mdmodels.sql.connector import DatabaseConnector
 
 
 def create_mcp_tools(
