@@ -22,24 +22,31 @@
 
 import copy
 import pathlib
+from datetime import date
 from enum import Enum
 from functools import partial
-from typing import Any, Annotated, ForwardRef, Union
+from typing import Annotated, Any, ForwardRef, Union
 
 import httpx
 import validators
 from mdmodels_core import DataModel as RSDataModel  # type: ignore
 from pydantic import BeforeValidator
 from pydantic_core.core_schema import ValidationInfo
-from pydantic_xml import RootXmlModel, create_model, attr, element, wrapped
+from pydantic_xml import (
+    RootXmlModel,
+    attr,
+    create_model,
+    element,
+    wrapped,
+)
 
-from mdmodels.adder_method import apply_adder_methods
-from mdmodels.datamodel import DataModel
-from mdmodels.library import Library
-from mdmodels.path import PathFactory
-from mdmodels.reference import ReferenceContext
-from mdmodels.units.annotation import UnitDefinitionAnnot
-from mdmodels.utils import extract_option
+from .adder_method import apply_adder_methods
+from .datamodel import DataModel
+from .library import Library
+from .path import PathFactory
+from .reference import ReferenceContext
+from .units.annotation import UnitDefinitionAnnot
+from .utils import extract_option
 
 # Mapping of string type names to Python units
 TYPE_MAPPING = {
@@ -48,7 +55,7 @@ TYPE_MAPPING = {
     "float": float,
     "boolean": bool,
     "number": float,
-    "date": str,
+    "date": date,
     "bytes": bytes,
 }
 
@@ -87,7 +94,7 @@ def build_module(
     content: str | None = None,
     data_model: RSDataModel | None = None,
     ignore_attributes: list[str] = [],
-) -> Library:
+) -> Library[DataModel]:
     """
     Create a data model module from a markdown file.
 
@@ -184,22 +191,27 @@ def build_type(
         if attribute.name in ignore_attributes:
             continue
 
-        params = {}
+        params: dict[str, Any] = {
+            "json_schema_extra": {},
+        }
         dtypes = []
 
         for dtype in attribute.dtypes:
             dtype = get_dtype(dtype, dm, py_types, rs_type.name, ignore_attributes)
 
-            if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):
+            if not hasattr(dtype, "__name__"):
+                raise ValueError(f"No data type found for attribute {attribute.name}")
+
+            if dtype.__name__ in py_types or hasattr(dtype, "__recursive__"):  # pyright: ignore[reportAttributeAccessIssue]
                 module.add_cross_connection(
                     source_type=rs_type.name,
                     source_attr=attribute.name,
-                    target_type=dtype.__name__,
+                    target_type=dtype.__name__,  # pyright: ignore[reportAttributeAccessIssue]
                     is_array=attribute.is_array,
                 )
 
                 if hasattr(dtype, "__recursive__"):
-                    dtype = ForwardRef(dtype.__name__)
+                    dtype = ForwardRef(dtype.__name__)  # pyright: ignore[reportAttributeAccessIssue]
                     forward_refs.append(dtype)
 
                 before_validator = partial(
@@ -234,6 +246,11 @@ def build_type(
         elif not attribute.required and attribute.is_array:
             params["default_factory"] = list
             del params["default"]
+
+        if attribute.options:
+            params["json_schema_extra"].update(
+                {option.k(): option.v() for option in attribute.options}
+            )
 
         attrs[attribute.name] = _process_xml_attribute(attribute, dtype, params)
 
