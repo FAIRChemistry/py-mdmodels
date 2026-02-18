@@ -1,0 +1,41 @@
+---
+title: Serializing Your Data
+description: Learn how to convert your data objects to JSON, XML, and other formats.
+---
+
+Once you've created and validated your data objects, you'll often need to save them to files, send them over networks, or store them in databases. MD-Models makes it easy to convert your objects into common serialization formats that can be used anywhere.
+
+Serialization is the process of converting your Python objects into a format that can be stored or transmitted, like JSON, XML, or a Python dictionary. MD-Models handles all the details of this conversion, ensuring that your data structure is preserved correctly in whatever format you choose.
+
+## Converting to JSON
+
+JSON (JavaScript Object Notation) is one of the most common formats for exchanging data between systems. It's human-readable, widely supported, and works well with web APIs, databases, and configuration files. MD-Models provides convenient methods to convert your objects to JSON:
+
+```python
+# Convert to a JSON string
+json_string = project.model_dump_json(indent=2)
+print(json_string)
+
+# Or convert to a Python dictionary (which can then be serialized to JSON)
+data_dict = project.model_dump()
+```
+
+The `indent=2` parameter makes the JSON nicely formatted with proper indentation, making it easy to read and debug. You can omit it if you want a more compact format for storage or transmission. The JSON output preserves your entire object structure, including all nested objects and collections.
+
+Once you have JSON, you can easily save it to a file, send it over HTTP, store it in a database, or use it with any tool that understands JSON. MD-Models ensures that the JSON representation accurately reflects your data model structure.
+
+## Converting to XML
+
+If you need XML format (perhaps for integration with legacy systems, SOAP APIs, or XML-based tools), MD-Models can generate that too:
+
+```python
+# Convert to a formatted XML string
+xml_string = project.xml()
+print(xml_string)
+
+# Or get raw XML bytes
+xml_bytes = project.xml(encoding="bytes")
+```
+
+The XML output is automatically formatted with proper indentation and follows standard XML conventions. MD-Models handles the conversion of your object structure into XML elements and attributes, ensuring that the resulting XML is valid and well-formed. This makes it easy to integrate MD-Models data with systems that expect XML input.
+

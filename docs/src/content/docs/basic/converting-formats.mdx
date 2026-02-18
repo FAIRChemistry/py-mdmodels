@@ -1,0 +1,55 @@
+---
+title: Converting Your Data Model to Other Formats
+description: Learn how to convert your data model definitions to other formats and programming languages.
+---
+
+While serialization converts your data instances to different formats, you can also convert your data model definition (the Library itself) to various other formats and programming languages. This is useful when you want to:
+
+- **Generate documentation**: Create visual diagrams or formatted documentation from your markdown definitions
+- **Create schemas for other systems**: Export to XML Schema, JSON Schema, or GraphQL schemas for use with other tools
+- **Export to other programming languages**: Generate code in Rust, Julia, TypeScript, or other languages that matches your data model
+- **Integrate with other tools**: Provide schemas to validation libraries, API generators, or database tools
+
+The key difference from serialization is that this converts the model structure itself, not individual data instances. It's about translating your markdown definitions into other representation formats.
+
+## Available Formats
+
+MD-Models supports conversion to many formats through the `Templates` system. Each template knows how to translate your markdown-defined structure into a specific format:
+
+```python
+from mdmodels import Templates
+
+# Convert to XML Schema (XSD) - useful for XML validation and SOAP APIs
+xsd_schema = library.convert_to(Templates.XML_SCHEMA)
+
+# Convert to JSON Schema - great for API documentation and validation
+json_schema = library.convert_to(Templates.JSON_SCHEMA)
+
+# Convert to a Mermaid class diagram - perfect for documentation
+mermaid_diagram = library.convert_to(Templates.MERMAID)
+
+# Convert to code in other programming languages
+rust_code = library.convert_to(Templates.RUST)
+julia_code = library.convert_to(Templates.JULIA)
+typescript_code = library.convert_to(Templates.TYPESCRIPT)
+graphql_schema = library.convert_to(Templates.GRAPHQL)
+```
+
+Each conversion preserves the structure and relationships you defined in your markdown, translating them into the conventions and syntax of the target format. For example, when converting to TypeScript, your markdown types become TypeScript interfaces; when converting to GraphQL, they become GraphQL type definitions.
+
+## Saving Converted Formats
+
+Once you've converted your model to another format, you'll typically want to save it to a file so you can use it with other tools or include it in your project:
+
+```python
+# Save as XSD schema
+with open("model.xsd", "w") as f:
+    f.write(library.convert_to(Templates.XML_SCHEMA))
+
+# Save as Mermaid diagram for documentation
+with open("diagram.md", "w") as f:
+    f.write(library.convert_to(Templates.MERMAID))
+```
+
+These converted files can then be used by other tools in your ecosystem. For example, an XSD file can be used by XML validators, a JSON Schema can be used by API documentation generators, and a Mermaid diagram can be rendered in documentation sites or markdown viewers.
+

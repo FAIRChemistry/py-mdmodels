@@ -1,0 +1,95 @@
+---
+title: Parsing Your Markdown Data Model
+description: Learn how to load markdown data models from files, URLs, GitHub, and more.
+---
+
+The first step in the MD-Models workflow is parsing your markdown file. This is where MD-Models reads your data structure definition and prepares to generate Python classes from it. MD-Models provides several convenient ways to load your markdown, depending on where your data model is stored.
+
+## From a Local File
+
+The most straightforward way to load a data model is from a file on your local filesystem. This is perfect when you're developing locally or have the markdown file saved in your project:
+
+```python
+from mdmodels import DataModel
+
+# Load from a local file path
+library = DataModel.from_markdown("path/to/your/model.md")
+```
+
+When you call `from_markdown()` with a file path, MD-Models reads the file, parses its structure, and generates all the necessary Python classes. The parsing happens automatically. You don't need to worry about the details of how MD-Models interprets your markdown syntax.
+
+## From a Markdown String
+
+Sometimes you might have markdown content as a string in your code, perhaps because you're generating it dynamically or reading it from a database. In these cases, you can parse it directly without creating a file:
+
+```python
+markdown_content = """
+### MyObject
+- name
+  - Type: string
+  - Description: The name of the object.
+"""
+
+library = DataModel.from_markdown_string(markdown_content)
+```
+
+This method is particularly useful when you're building tools that generate data models programmatically or when you're working with markdown content that comes from an API or another source.
+
+## From a Remote URL
+
+MD-Models can also load markdown files directly from the web using HTTP or HTTPS URLs. This makes it easy to share data models across teams or organizations, simply host your markdown file on a website or in a repository, and anyone can load it directly:
+
+```python
+# Load from any HTTP/HTTPS URL
+library = DataModel.from_markdown("https://example.com/models/my-model.md")
+```
+
+When you provide a URL, MD-Models fetches the content, parses it, and generates the Library just as if you had loaded it from a local file. This approach is excellent for centralized data model management, where a single source of truth is maintained online and multiple projects reference it.
+
+## From GitHub
+
+If your markdown file is stored in a GitHub repository, MD-Models provides a convenient method that handles authentication and GitHub's API for you:
+
+```python
+# Load from GitHub (main branch)
+library = DataModel.from_github(
+    repo="owner/repository-name",
+    spec_path="path/to/model.md"
+)
+
+# Load from a specific branch
+library = DataModel.from_github(
+    repo="owner/repository-name",
+    spec_path="path/to/model.md",
+    branch="develop"
+)
+
+# Load from a specific tag or release
+library = DataModel.from_github(
+    repo="owner/repository-name",
+    spec_path="path/to/model.md",
+    tag="v1.0.0"
+)
+```
+
+This method is particularly powerful because it allows you to version your data models using Git tags and branches. You can pin your application to a specific version of a data model, or load the latest from a development branch. The GitHub integration makes it easy to collaborate on data models while maintaining version control.
+
+## From JSON Schema
+
+If you already have a JSON Schema definition (perhaps from an existing API or tool), MD-Models can convert it directly into a Library. This is useful when migrating from other systems or when you need to work with schemas that were defined elsewhere:
+
+```python
+# From a JSON Schema file
+library = DataModel.from_json_schema("schema.json")
+
+# From a JSON Schema string
+schema_string = '{"type": "object", "properties": {...}}'
+library = DataModel.from_json_schema_string(schema_string)
+```
+
+The conversion process automatically translates JSON Schema types, constraints, and structures into MD-Models classes, so you can start using MD-Models features even if your original schema wasn't written in markdown.
+
+## What's Next?
+
+Once you've parsed your markdown file, you'll get back a `Library` object. The next guide explains what the Library is and how to explore it.
+

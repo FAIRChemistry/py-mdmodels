@@ -1,0 +1,57 @@
+---
+title: Querying Your Data
+description: Learn how to extract specific values from your data objects using JSON paths.
+---
+
+As your data structures become more complex, you'll often need to extract specific values or navigate through nested objects. MD-Models provides powerful querying capabilities using JSON paths, a standardized way to navigate and extract data from nested structures.
+
+JSON paths work like file system paths, but for JSON data. They let you specify exactly where in your object hierarchy you want to look, making it easy to extract values without manually traversing through nested dictionaries and lists.
+
+## Finding Single Values
+
+The `find()` method lets you extract a single value from your data structure using a JSON path expression:
+
+```python
+# Find a specific value using a JSON path
+result = project.find("$.molecules[0].name")
+print(result)  # Output: "Water"
+```
+
+In this example, `$.molecules[0].name` means: start at the root (`$`), go to the `molecules` collection, get the first item (`[0]`), and then get its `name` attribute. JSON paths support array indexing, nested object navigation, and wildcards, making them very flexible for querying complex structures.
+
+## Finding Multiple Values
+
+When you need to extract several values at once, `find_multiple()` is more efficient than calling `find()` multiple times. It takes a list of JSON paths and returns a dictionary mapping each path to its value:
+
+```python
+# Find multiple values in a single call
+results = project.find_multiple([
+    "$.molecules[0].name",
+    "$.molecules[1].formula",
+    "$.title"
+])
+print(results)
+# Output: {
+#   '$.molecules[0].name': 'Water',
+#   '$.molecules[1].formula': 'C2H5OH',
+#   '$.title': 'My Research Project'
+# }
+```
+
+This is particularly useful when you're building reports, extracting data for APIs, or gathering multiple pieces of information from a complex object structure. The method returns all the values in a single dictionary, making it easy to work with the results.
+
+## Getting All JSON Paths
+
+Sometimes you want to know what paths are available in your data model before you start querying. This is especially useful when you're working with a model you haven't seen before, or when you're building tools that need to discover the structure dynamically:
+
+```python
+# Get all JSON paths for a specific object class
+paths = library.ChemicalProject.json_paths()
+print(paths)
+
+# Get only leaf paths (paths that point to actual values, not containers)
+leaf_paths = library.ChemicalProject.json_paths(leafs=True)
+```
+
+The `json_paths()` method returns all possible paths in your data model. When `leafs=True`, it only returns paths that point to actual values (like strings or numbers) rather than containers (like objects or arrays). This is useful when you want to know what data fields are available without seeing all the intermediate container paths.
+

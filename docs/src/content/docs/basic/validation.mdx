@@ -1,0 +1,60 @@
+---
+title: Validating Your Data
+description: Learn how MD-Models automatically validates your data and how to use reference validation.
+---
+
+One of the most powerful features of MD-Models is its automatic data validation system. When you create an object, MD-Models automatically checks that your data conforms to the structure you defined in your markdown file. This validation happens at multiple levels and helps ensure data integrity throughout your application.
+
+## Automatic Validation on Creation
+
+Basic validation happens automatically whenever you create an object. MD-Models checks that:
+
+- **Required fields are provided**: If your markdown specifies that a field is required, you must provide it when creating the object
+- **Data types match**: If you specified that a field should be a `string`, passing a `number` will raise a validation error
+- **Constraints are satisfied**: Any constraints you defined (like minimum/maximum values, string patterns, etc.) are automatically enforced
+
+If something is wrong, you'll get a clear, detailed error message that tells you exactly what field failed validation and why:
+
+```python
+# This will raise a validation error if the data doesn't match the schema
+project = library.ChemicalProject(title="My Project")
+```
+
+The error messages are designed to be helpful, they'll tell you which field has a problem, what value you provided, and what was expected. This makes debugging much easier than trying to figure out why your data isn't working later in your application.
+
+## Reference Validation
+
+Beyond basic type checking, MD-Models can also validate references between objects. This is particularly useful when your data model includes relationships, for example, when a `Concentration` object's `molecule_id` must reference an existing molecule in the project.
+
+To enable reference validation, you need to specify `References` in your markdown file. This tells MD-Models where to look when validating that a reference is valid:
+
+```markdown
+- molecule_id
+  - Type: string
+  - Description: The identifier of the molecule.
+  - References: ChemicalProject.molecules.id
+```
+
+When you call `validate()` on your object, MD-Models will check that all references point to objects that actually exist:
+
+```python
+# Validate the entire project and all its nested objects
+project.validate()
+```
+
+If any references are invalid (for example, if you reference a molecule that doesn't exist), you'll get a detailed error message showing exactly which reference is broken and what it was trying to reference. This validation works recursively, so it checks all nested objects as well.
+
+## Re-validating After Changes
+
+Since MD-Models objects are mutable (you can modify them after creation), you might want to re-validate your data after making changes. This is especially important when you're building up complex structures incrementally:
+
+```python
+# Make some changes
+project.add_to_molecules(id="mol3", name="New Molecule", formula="C3H8")
+
+# Re-validate to ensure everything is still correct
+project.validate()
+```
+
+Calling `validate()` checks the entire object tree, so if you've added new objects or modified existing ones, it will ensure that all references are still valid and all constraints are still satisfied. This gives you confidence that your data remains consistent even as you modify it.
+

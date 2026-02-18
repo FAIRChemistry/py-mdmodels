@@ -1,0 +1,297 @@
+---
+title: CLI Configuration
+description: Run MD-Models integrations from the CLI and configure them with a single TOML file.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models includes a CLI (`mdmodels`) for running your model as an API or MCP server from one TOML configuration file. This is useful when you want a repeatable deployment setup, keep infrastructure settings in version control, or switch between local development and production without changing Python code.
+
+## When to use the CLI
+
+Use the CLI when you want to:
+
+- start a REST API quickly from an existing markdown model,
+- expose the same data model as MCP tools for AI clients,
+- keep model path, database settings, and integration settings in one shared config,
+- run the same setup consistently across local machines, CI, and servers.
+
+In short: if your workflow is "configure once, run anywhere", the CLI is the most direct path.
+
+Another advantage is alignment across teams: data engineers, backend developers, and AI application developers can all use the same project config and run mode-specific commands without maintaining different setup scripts.
+
+## CLI Commands
+
+<Steps>
+
+1. **Run REST API**
+
+   ```bash
+   mdmodels rest --config config.toml
+   ```
+
+   Optional flags include `--host`, `--port`, `--name`, `--graphql`, `--env`, and `--create-tables`.
+
+2. **Run MCP Server**
+
+   ```bash
+   mdmodels mcp --config config.toml --transport stdio
+   ```
+
+   Supported transports are `stdio`, `sse`, and `streamable-http`. For non-stdio transports, you can also set `--host` and `--port`.
+
+3. **Install MCP in Claude Desktop**
+
+   ```bash
+   mdmodels install claude-desktop --config config.toml --name mdmodels
+   ```
+
+   This writes an MCP server entry to Claude Desktop config and runs it via `uv run mdmodels mcp`.
+
+</Steps>
+
+## Typical Workflows
+
+### 1) Build and test your API locally
+
+This is the fastest way to move from markdown schema to a working HTTP API.
+
+Start with:
+
+```bash
+mdmodels rest --config config.toml --host 127.0.0.1 --port 8800
+```
+
+Then validate:
+
+- Open `http://127.0.0.1:8800/docs` and test generated endpoints.
+- Confirm your expected models appear as routes.
+- Verify create/list/retrieve behavior for at least one model.
+
+During iteration, update your markdown model and rerun the command to verify endpoint shape and validation behavior.
+
+If you also need GraphQL in the same app for frontend teams or analytical clients:
+
+```bash
+mdmodels rest --config config.toml --graphql
+```
+
+This keeps REST and GraphQL on one runtime so both consumers share the same data and schema evolution.
+
+### 2) Connect your model to an MCP client
+
+Use this when your primary consumer is an assistant or agent.
+
+Run the MCP server in `stdio` mode for desktop clients:
+
+```bash
+mdmodels mcp --config config.toml --transport stdio
+```
+
+For Claude Desktop, register it once:
+
+```bash
+mdmodels install claude-desktop --config config.toml --name mdmodels
+```
+
+Typical flow:
+
+- Configure a small set of MCP tools under `[mcp.tools.<ModelName>]`.
+- Enable `allow_create` only where write access is appropriate.
+- Keep descriptive `description` text so tool intent is clear to the assistant.
+
+This workflow is especially effective for internal copilots that need structured access to experiments, inventory, metadata, or other model-backed records.
+
+### 3) Deploy over HTTP transport
+
+Use this when MCP clients connect over a network instead of local stdio.
+
+For networked deployments, use `sse` or `streamable-http`:
+
+```bash
+mdmodels mcp --config config.toml --transport streamable-http --host 0.0.0.0 --port 7000
+```
+
+Recommended rollout pattern:
+
+- Start locally with `stdio` to verify tool behavior.
+- Move to `streamable-http` for shared environments.
+- Add environment-based secrets via `--env` and infrastructure-level access controls.
+
+For most modern deployments, `streamable-http` is a good default because it integrates cleanly with standard HTTP infrastructure.
+
+## Choosing the Right Command
+
+Use `mdmodels rest` when your consumers are web/mobile/backend clients and you want HTTP endpoints with OpenAPI docs. Add `--graphql` when your consumers need flexible field selection and nested queries in one request.
+
+Use `mdmodels mcp` when your consumers are AI agents or assistant clients that should interact with your model through tools. This is usually the best choice for assistant workflows in Claude Desktop, Cursor, or custom MCP clients.
+
+It is common to run both in the same project:
+
+- REST/GraphQL for application integration,
+- MCP for assistant automation and internal productivity workflows.
+
+## Config File Structure
+
+The root config object contains these sections:
+
+- `model`: source markdown model path.
+- `sql`: database connection and per-table SQL behavior.
+- `rest`: endpoint exposure per model.
+- `mcp`: MCP tool exposure per model.
+
+This separation keeps concerns clear: the `sql` section defines storage and table behavior, while `rest` and `mcp` define how that data is exposed to external consumers.
+
+Minimal example:
+
+```toml
+[model]
+path = "specifications/model.md"
+
+[sql]
+type = "postgres"
+host = "localhost"
+port = 5432
+database = "mydb"
+username = "postgres"
+password = "postgres"
+```
+
+## `model` Section
+
+- `model.path` (`Path`, required): path to your markdown model file.
+
+When using the CLI, relative `model.path` values are resolved relative to the config file location, which keeps projects portable across environments.
+
+## `sql` Section
+
+Global SQL fields:
+
+- `sql.type` (`postgres | pgvector | sqlite`, required)
+- `sql.database` (`string`, required)
+- `sql.host` (`string`, optional)
+- `sql.port` (`int`, optional)
+- `sql.username` (`string`, optional)
+- `sql.password` (`string`, optional)
+
+For local development, `sqlite` is often the fastest way to get started. For production APIs and vector search workloads, `postgres` or `pgvector` are typically preferred.
+
+Table-level settings are defined under `[sql.tables.<TableName>]`:
+
+- `primary_key` (`string`, optional)
+- `indexed_columns` (`string[]`, default `[]`)
+- `deduplicate_on` (`string[]`, default `[]`)
+- `conflict_policy` (`error | upsert | ignore`, default `error`)
+- `mutability_policy` (`mutable | append_only`, default `mutable`)
+
+These table options are useful for lifecycle control. For example, use `append_only` for event-like records, or `upsert` with `deduplicate_on` for idempotent ingest pipelines.
+
+Embedding settings can be added under `[sql.tables.<TableName>.embedding]`:
+
+- `column` (`string`, required when embedding is used)
+- `model` (`string`, required)
+- `provider` (`openai | huggingface`, required)
+- `dimension` (`int`, optional)
+
+Provider-specific subsections:
+
+- `[sql.tables.<TableName>.embedding.openai]`
+- `api_key_env` (`string`, default `OPENAI_API_KEY`)
+- `base_url` (`string`, optional)
+
+- `[sql.tables.<TableName>.embedding.huggingface]`
+- `device` (`string`, optional)
+- `batch_size` (`int`, default `32`)
+- `normalize_embeddings` (`bool`, default `true`)
+
+## `rest` Section
+
+Configure allowed operations per model in `[rest.endpoints]`:
+
+```toml
+[rest.endpoints]
+Experiment = ["create", "list", "retrieve", "update", "delete", "search", "vectorsearch"]
+```
+
+If a model is omitted in `rest.endpoints`, default REST behavior applies for that model.
+
+This makes it easy to begin with full API generation and then tighten exposure model-by-model as your API surface evolves.
+
+Allowed values are:
+
+- `create`
+- `list`
+- `retrieve`
+- `update`
+- `delete`
+- `search`
+- `vectorsearch`
+
+## `mcp` Section
+
+Configure MCP tool behavior per model in `[mcp.tools.<ModelName>]`:
+
+```toml
+[mcp.tools.Experiment]
+description = "Create a new experiment entry."
+allow_create = true
+```
+
+Fields:
+
+- `description` (`string`, optional)
+- `allow_create` (`bool`, default `false`)
+
+This lets you expose only the MCP tools you want. A common pattern is enabling `allow_create` only for selected models and keeping others query-only.
+
+## Environment Variables
+
+Use `--env` to load environment variables from a file before startup:
+
+```bash
+mdmodels rest --config config.toml --env .env
+```
+
+```bash
+mdmodels mcp --config config.toml --env .env
+```
+
+This is especially useful for credentials and provider keys. Keeping sensitive values in environment variables instead of TOML files makes deployments safer and easier to rotate.
+
+## Operational Notes
+
+- `--create-tables` is enabled by default for `mdmodels rest`, which is convenient for development and first-time setup.
+- For stricter production workflows, run schema setup as a controlled deployment step and disable table creation at startup.
+- Use explicit `--host` and `--port` values in infrastructure environments to avoid accidental defaults.
+
+## Troubleshooting Tips
+
+- If the model file is not found, check that `model.path` is correct relative to `config.toml`.
+- If database connection fails, verify `sql.type` and connection values (`host`, `port`, `database`, credentials).
+- If MCP tools are missing, confirm the model names under `[mcp.tools.<ModelName>]` match your generated model names.
+- If vector search is not available, check table embedding settings under `[sql.tables.<TableName>.embedding]`.
+
+## Complete Example
+
+```toml
+[model]
+path = "specifications/strenda.md"
+
+[sql]
+type = "pgvector"
+host = "localhost"
+port = 5432
+database = "postgres"
+
+[sql.tables.StrendaBiocatalysis]
+embedding.column = "description"
+embedding.provider = "openai"
+embedding.model = "text-embedding-3-small"
+
+[rest.endpoints]
+StrendaBiocatalysis = ["create", "list", "retrieve", "search", "vectorsearch"]
+
+[mcp.tools.StrendaBiocatalysis]
+description = "Create a new Strenda-biocatalysis project"
+allow_create = true
+```

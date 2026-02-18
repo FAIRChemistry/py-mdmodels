@@ -1,0 +1,232 @@
+---
+title: Graph Database Integration
+description: Learn how to turn your data model into a graph database with Neo4j.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models provides integration with Neo4j, a popular graph database. Graph databases excel at representing relationships between entities, making them perfect for data models with complex interconnections. Instead of tables and foreign keys, graph databases use nodes and relationships, which naturally map to your markdown-defined object structures.
+
+The graph database integration transforms your markdown data models into Neo4j node types and relationships, allowing you to store and query your data in a graph format.
+
+## Getting Started
+
+<Steps>
+
+1. **Connect to Neo4j**
+
+   ```python
+   from mdmodels.graph import GraphConnector
+   
+   connector = GraphConnector(
+       host="localhost",
+       user="neo4j",
+       password="your_password",
+       port=7687
+   )
+   ```
+
+   This configures the NeoModel library to connect to your Neo4j database. Make sure your Neo4j instance is running and accessible.
+
+2. **Generate NeoModel Classes**
+
+   ```python
+   from mdmodels import DataModel
+   
+   # Load your markdown data model
+   model = DataModel.from_markdown("model.md")
+   
+   # Generate NeoModel classes (recommended way)
+   types = model.to_neomodel()
+   ```
+
+   The `to_neomodel()` method creates:
+   - **Node classes** for each object type in your model
+   - **Properties** for each attribute defined in your markdown
+   - **Relationships** for array attributes that reference other object types
+   - **Relationship types** based on the `Term` specified in your markdown (or defaults to "HAS")
+
+3. **Create Nodes and Relationships**
+
+   ```python
+   # Access node classes
+   Molecule = types["Molecule"]
+   Reaction = types["Reaction"]
+   
+   # Create nodes
+   molecule = Molecule(identifier="M001", name="Water", formula="H2O")
+   molecule.save()
+   
+   # Create relationships
+   reaction.educts.connect(molecule)  # Creates a CONSUMES relationship
+   ```
+
+</Steps>
+
+## Understanding Node Classes
+
+Each object type in your markdown becomes a NeoModel node class with properties for each attribute. Node classes automatically handle:
+
+- **Unique identifiers**: Fields marked as identifiers become unique constraints
+- **Property types**: String, number, and array types are mapped to Neo4j property types
+- **Required fields**: Fields marked as required are enforced when creating nodes
+
+## Creating Relationships
+
+Relationships in Neo4j connect nodes together. In your markdown, array attributes that reference other object types automatically become relationships:
+
+```markdown
+### Reaction
+- educts
+  - Type: [Molecule](#molecule)[]
+  - Term: CONSUMES
+- products
+  - Type: [Molecule](#molecule)[]
+  - Term: PRODUCES
+```
+
+The `Term` field specifies the relationship type name in Neo4j. If omitted, it defaults to "HAS". To create relationships:
+
+```python
+# Create nodes
+reaction = Reaction(name="Water Formation").save()
+substrate = Molecule(identifier="M001", name="Hydrogen").save()
+product = Molecule(identifier="M002", name="Water").save()
+
+# Create relationships using the relationship properties
+reaction.educts.connect(substrate)  # Creates a CONSUMES relationship
+reaction.products.connect(product)   # Creates a PRODUCES relationship
+```
+
+Relationships are directional, they go from the source node (the reaction) to the target node (the molecule). This directionality is important for graph queries and traversals.
+
+## Querying Nodes
+
+NeoModel provides a simple API for querying nodes:
+
+```python
+# Get the first node of a type
+reaction = Reaction.nodes.first()
+
+# Get all nodes of a type
+all_reactions = Reaction.nodes.all()
+
+# Get nodes matching a filter
+water_molecules = Molecule.nodes.filter(name="Water")
+```
+
+The `.nodes` property on each class provides access to query methods. You can filter, order, and limit results just like you would with any database query.
+
+## Traversing Relationships
+
+One of the most powerful features of graph databases is the ability to traverse relationships. NeoModel makes this easy:
+
+```python
+# Get all related nodes through a relationship
+reaction = Reaction.nodes.first()
+
+# Get all educts (molecules consumed by this reaction)
+educts = reaction.educts.all()
+
+# Get all products (molecules produced by this reaction)
+products = reaction.products.all()
+```
+
+Each relationship property on a node provides methods to access connected nodes. You can traverse multiple levels of relationships to find complex patterns in your data.
+
+## Getting All Relationships
+
+Sometimes you want to see all relationships connected to a node, regardless of their type. NeoModel provides a method for this:
+
+```python
+reaction = Reaction.nodes.first()
+
+# Get all relationships (both in-schema and out-of-schema)
+all_relationships = reaction.get_relationships()
+```
+
+This is useful when you want to explore the connections around a node without knowing exactly what relationship types exist.
+
+## Out-of-Schema Relationships
+
+Neo4j is flexible, you can create relationships that aren't defined in your markdown schema. This is useful for dynamic or evolving data models:
+
+```python
+reaction = Reaction.nodes.first()
+related_reaction = Reaction(name="Related Reaction").save()
+
+# Create a relationship with a custom type and properties
+reaction.dyn_connect(
+    related_reaction,
+    "RELATED",
+    {"has_same_kinetics": True, "similarity_score": 0.85}
+)
+```
+
+The `dyn_connect()` method lets you create relationships with custom types and properties that aren't part of your original markdown definition. This flexibility is one of the advantages of graph databases over rigid relational schemas.
+
+## Relationship Properties
+
+Relationships in Neo4j can have properties, just like nodes. When you create relationships dynamically, you can attach properties to them:
+
+```python
+# Create a relationship with properties
+reaction.educts.connect(
+    molecule,
+    properties={"stoichiometry": 2.0, "catalyst": True}
+)
+```
+
+These properties can store metadata about the relationship itself, like how many molecules are consumed, whether a catalyst is needed, or any other information relevant to the connection.
+
+## Working with Arrays
+
+When your markdown defines array attributes that aren't relationships (like arrays of strings or numbers), they become array properties on nodes:
+
+```python
+# If your markdown has:
+# - tags
+#   - Type: string[]
+
+# Then you can set it as an array
+molecule.tags = ["organic", "solvent", "common"]
+molecule.save()
+```
+
+Neo4j natively supports array properties, so you can store lists of values directly on nodes without needing separate relationship nodes.
+
+## Example: Chemical Reactions
+
+Here's a complete example showing how to work with chemical reactions in Neo4j:
+
+```python
+from mdmodels import DataModel
+from mdmodels.graph import GraphConnector
+
+# Connect to Neo4j
+connector = GraphConnector(host="localhost", user="neo4j", password="password", port=7687)
+
+# Load your data model and generate node classes
+model = DataModel.from_markdown("model.md")
+types = model.to_neomodel()
+Molecule = types["Molecule"]
+Reaction = types["Reaction"]
+
+# Create molecules
+hydrogen = Molecule(identifier="H2", name="Hydrogen", formula="H2").save()
+oxygen = Molecule(identifier="O2", name="Oxygen", formula="O2").save()
+water = Molecule(identifier="H2O", name="Water", formula="H2O").save()
+
+# Create a reaction
+combustion = Reaction(name="Hydrogen Combustion").save()
+
+# Connect molecules as educts and products
+combustion.educts.connect(hydrogen)
+combustion.educts.connect(oxygen)
+combustion.products.connect(water)
+
+# Query: Find all reactions that produce water
+water_producers = water.reactions.all()  # Assuming reverse relationship exists
+```
+
+This example shows how naturally graph databases represent relationships, molecules connect to reactions through educt/product relationships, and you can query in either direction to find what reactions involve a molecule or what molecules a reaction produces.

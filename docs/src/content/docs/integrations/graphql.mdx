@@ -1,0 +1,173 @@
+---
+title: Strawberry GraphQL
+description: Learn how to turn your data model into a GraphQL API with Strawberry.
+---
+
+import { Code } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models provides GraphQL integration that automatically generates a GraphQL schema and server from your markdown-defined data models. Using Strawberry GraphQL, MD-Models creates a fully functional GraphQL API with automatic type generation, query resolvers, and nested relationship support.
+
+The GraphQL integration transforms your markdown data models into GraphQL types and queries, allowing you to expose your data through a flexible GraphQL API. Each object type in your markdown becomes a GraphQL type with automatic query fields. This means you get a production-ready GraphQL server without writing any GraphQL schema definitions or resolver functions manually—MD-Models handles all the boilerplate for you.
+
+GraphQL offers several advantages over traditional REST APIs: clients can request exactly the fields they need (avoiding over-fetching), related data can be fetched in a single query, and the schema is self-documenting through introspection. MD-Models leverages these benefits by automatically generating a GraphQL schema that matches your data model structure, ensuring type safety and consistency between your markdown definitions and your API.
+
+## Setting up the GraphQL server
+
+<Steps>
+
+1. Load Your Data Model
+
+   First, you need to load your data model.
+
+   ```python
+   from mdmodels import DataModel, sql
+   from mdmodels.graphql import create_graphql_app
+   
+   model = DataModel.from_markdown("model.md")
+   ```
+
+   This gives you a Library containing Pydantic models (for request/response validation).
+
+2. **Set Up Database Connection**
+
+   ```python
+   db = sql.DatabaseConnector(library=model, **database_config)
+   # Creates tables and returns SQLModel classes
+   db_models = db.create_tables()
+   ```
+
+   The `DatabaseConnector` automatically generates SQLModel classes from your library. The `create_tables()` method returns the generated SQLModel classes (for database operations).
+
+3. **Create GraphQL App**
+
+   ```python   
+   app = create_graphql_app(db=db)
+   ```
+
+5. **Run the Server**
+
+   ```bash
+   uvicorn app:app --reload
+   ```
+</Steps>
+
+## CLI Usage
+
+GraphQL is exposed through the REST server, so the CLI entry point is `mdmodels rest` with the `--graphql` flag:
+
+```bash
+mdmodels rest --config config.toml --graphql --host 127.0.0.1 --port 8800
+```
+
+This starts FastAPI endpoints and mounts GraphQL at `/graphql` in the same app instance. For TOML configuration details (`model`, `sql`, `rest`, and `mcp` sections), see [CLI Configuration](/integrations/cli).
+
+## Understanding Generated GraphQL Types
+
+Each object type in your markdown becomes a GraphQL type. MD-Models uses Strawberry's Pydantic integration to automatically convert your Pydantic models into GraphQL types. This conversion preserves all the type information from your markdown definitions, including field types, optional fields, and relationships.
+
+The type conversion process is seamless: scalar types (strings, numbers, booleans) map directly to GraphQL scalars, while relationships become nested GraphQL types. This ensures that your GraphQL schema accurately represents your data model structure, and clients can query related data in a single request.
+
+For example, if you define a model in markdown:
+
+```markdown
+### Molecule
+- id: string
+- name: string
+- formula: string
+```
+
+This becomes a GraphQL type:
+
+```graphql
+type Molecule {
+  id: String
+  name: String
+  formula: String
+}
+```
+
+All fields from your markdown definition are included in the GraphQL type, and relationships are automatically handled through nested types. When you query a type that has relationships, GraphQL automatically resolves those relationships and includes the nested data in the response. This means you can traverse your entire data model structure in a single query, fetching molecules, their reactions, and related experiments all at once.
+
+The type system ensures type safety: required fields are marked as non-nullable (using `!`), optional fields remain nullable, and list types are properly represented. This matches the structure defined in your markdown, so there's no mismatch between your data definitions and your API schema.
+
+## Query Fields
+
+For each model in your markdown, MD-Models creates a query field that returns a list of that type. These query fields are automatically added to the root `Query` type, which is the entry point for all GraphQL queries. The naming convention follows the plural form of your model name (e.g., `Molecule` becomes `molecules`), making the API intuitive to use.
+
+Here's what the generated query fields look like:
+
+```graphql
+type Query {
+  molecules(limit: Int = 100, offset: Int = 0): [Molecule!]!
+  reactions(limit: Int = 100, offset: Int = 0): [Reaction!]!
+  experiments(limit: Int = 100, offset: Int = 0): [Experiment!]!
+}
+```
+
+Example without pagination or semantic search:
+
+```graphql
+{
+  experiments {
+    id
+    name
+  }
+}
+```
+
+Each query field supports pagination through `limit` and `offset` parameters. The resolvers automatically query the database using SQLModel and return nested data structures including relationships. When you request related data in your query, the resolver fetches it from the database and includes it in the response, maintaining the hierarchical structure defined in your data model.
+
+## Semantic Search Fields
+
+When you have vector embeddings configured on your tables (see [Vector Search](/databases/vector)), MD-Models automatically adds semantic search capabilities to your GraphQL query fields. This allows you to perform similarity searches using natural language queries or other embedded content like protein sequences. The semantic search functionality is exposed through two additional optional parameters on each query field: 
+
+* `semantic_query` accepts optional text to embed and rank results by vector similarity, and if omitted, the query behaves as a plain list with pagination only.
+
+* `embedding_table` parameter accepts an optional table name whose embedding model and column should be used for the search, and if omitted, the current table's embedder is used. This is particularly useful when you want to query one type (e.g., `experiments`) using another table's embedding space (e.g., `Protein` sequences).
+
+In this example, we search for experiments by protein sequence space:
+
+```graphql
+{
+  experiments(
+    semantic_query: "MENFQKVEKIGEGTYGVVYKARNKLTGEVVALKKIRLEFDTDVLKVL..."
+    embedding_table: "Protein"
+    limit: 5
+  ) {
+    id
+    name
+  }
+}
+```
+
+## Integration with FastAPI
+
+You can easily integrate your GraphQL API with a FastAPI application. This allows you to combine the flexibility of GraphQL with the simplicity of REST endpoints in a single application. You might use REST endpoints for simple CRUD operations and GraphQL for complex queries that need to traverse relationships or fetch specific field combinations.
+
+When integrating with FastAPI, you can mount the GraphQL app as a router at any path you choose (commonly `/graphql`). The GraphQL endpoint will work alongside your other FastAPI routes, sharing the same application instance and middleware stack. This means you can apply FastAPI middleware (like CORS, authentication, or logging) to both REST and GraphQL endpoints.
+
+Here's how to integrate GraphQL with FastAPI:
+
+```python
+from fastapi import FastAPI
+from mdmodels.graphql import create_graphql_app
+
+fastapi_app = FastAPI(title="My API")
+
+# Create and mount GraphQL app
+graphql_app = create_graphql_app(
+    db=db,
+    as_router=True,
+)
+fastapi_app.mount("/graphql", graphql_app)
+
+# Add other FastAPI routes as needed
+@fastapi_app.get("/")
+def root():
+    return {"message": "API is running"}
+```
+
+This allows you to combine GraphQL queries with REST endpoints in a single application, giving you the flexibility to use the best API style for each use case. REST endpoints are great for simple operations and when you want predictable URLs, while GraphQL excels at complex queries and when clients need to request specific data shapes.
+
+Both interfaces share the same underlying data models and database connection, ensuring consistency across your API. You can use FastAPI's dependency injection system to add authentication, authorization, or other middleware that applies to both REST and GraphQL endpoints. This unified approach gives you the benefits of both API styles without duplicating your data access logic.

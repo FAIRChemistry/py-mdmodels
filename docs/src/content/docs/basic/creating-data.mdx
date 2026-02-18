@@ -1,0 +1,66 @@
+---
+title: Creating and Working with Data
+description: Learn how to create data objects, work with collections, and build nested structures.
+---
+
+Now that you understand what the Library contains, it's time to use those classes to create actual data objects. This is where MD-Models really shines. The classes generated from your markdown work just like regular Python classes, but with automatic validation, type checking, and convenient methods for building complex nested structures.
+
+When you create an instance of a class from your Library, MD-Models automatically validates that all required fields are provided and that the data types match what you specified in your markdown. This means you catch errors early, before they cause problems downstream in your application.
+
+## Creating Simple Objects
+
+Creating an instance of an object is as simple as calling the class like a function and passing in the required attributes. MD-Models handles all the validation and type checking automatically:
+
+```python
+# Create a project with a title
+project = library.ChemicalProject(title="My Research Project")
+```
+
+When you create an object like this, MD-Models immediately validates that:
+- All required fields are provided (if `title` is required in your markdown, you must provide it)
+- The data types match what you specified (if `title` should be a string, passing a number will raise an error)
+- Any constraints you defined are satisfied
+
+This automatic validation means you can trust that the objects you create are always valid according to your data model definition.
+
+## Working with Collections
+
+Many data models include collections, which arelists of related objects. For example, a `ChemicalProject` might have a collection of `molecules`, or an `Experiment` might have a collection of `measurements`. MD-Models provides special methods to add items to these collections in a convenient way.
+
+These methods follow a consistent pattern: `add_to_<collection_name>`. So if you have a collection called `molecules` in your markdown, MD-Models automatically generates a method called `add_to_molecules()`:
+
+```python
+# Add molecules to the project
+project.add_to_molecules(id="mol1", name="Water", formula="H2O")
+project.add_to_molecules(id="mol2", name="Ethanol", formula="C2H5OH")
+```
+
+Each call to `add_to_molecules()` creates a new `Molecule` object, validates it, and adds it to the project's `molecules` collection. The method returns the newly created object, so you can use it immediately if needed. This pattern makes it easy to build up complex data structures incrementally.
+
+## Working with Nested Objects
+
+Real-world data structures often have objects nested inside other objects. For example, an `Experiment` might contain `Concentrations`, which in turn reference `Molecules`. MD-Models makes it easy to build these nested structures step by step:
+
+```python
+# Create an experiment and add it to the project
+experiment = project.add_to_experiments(id="exp1")
+
+# Add nested concentrations to the experiment
+experiment.add_to_initial_concentrations(
+    molecule_id="mol1",
+    value=1.0,
+    unit="mmol/L"
+)
+experiment.add_to_initial_concentrations(
+    molecule_id="mol2",
+    value=2.0,
+    unit="mmol/L"
+)
+```
+
+Notice how you can call `add_to_initial_concentrations()` on the `experiment` object that was returned from `add_to_experiments()`. This chaining pattern lets you build deeply nested structures naturally. You can also build them incrementally by storing references to intermediate objects. MD-Models supports both approaches, so you can use whichever feels more natural for your workflow.
+
+## Next Steps
+
+Now that you can create data objects, you'll want to learn about validation to ensure your data is correct, and serialization to save or transmit your data.
+

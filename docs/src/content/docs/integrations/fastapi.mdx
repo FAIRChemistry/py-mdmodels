@@ -1,0 +1,292 @@
+---
+title: FastAPI
+description: Learn how to turn your data model into a REST API with FastAPI.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models provides REST API integration that automatically generates CRUD (Create, Read, Update, Delete) endpoints from your markdown-defined data models. Using FastAPI, MD-Models creates a fully functional REST API with automatic OpenAPI documentation, request validation, and nested data insertion support.
+
+Each object type in your markdown becomes a set of REST endpoints with full CRUD capabilities, allowing you to expose your data through standard HTTP operations.
+
+## Setting up the REST API
+
+<Steps>
+
+1. **Load Your Data Model**
+
+   ```python
+   from mdmodels import DataModel, rest, sql
+   from fastapi import FastAPI
+   
+   model = DataModel.from_markdown("model.md")
+   ```
+
+   This gives you a Library containing Pydantic models (for request/response validation).
+
+2. **Set Up Database Connection**
+
+   ```python
+   db = sql.DatabaseConnector(library=model, **database_config)
+   # Creates tables and returns SQLModel classes
+   db_models = db.create_tables()
+   ```
+
+   The `DatabaseConnector` automatically generates SQLModel classes from your library. The `create_tables()` method returns the generated SQLModel classes (for database operations).
+
+3. **Create FastAPI Application**
+
+   ```python
+   app = fastapi.FastAPI(title="My CRUD API",
+       version="0.1.0")
+   
+   rest.create_rest_app(
+        app=app,
+        db=db,
+        config=RestApiConfig(),
+    )
+   ```
+
+4. **Run the Server**
+
+   ```bash
+   uvicorn api:app --reload
+   ```
+
+   The API will be available at `http://localhost:8000` with interactive documentation at `/docs`.
+
+</Steps>
+
+## CLI Usage
+
+If you prefer running the REST integration from the command line, you can start it directly with `mdmodels rest` and your TOML config file:
+
+```bash
+mdmodels rest --config config.toml --host 127.0.0.1 --port 8800
+```
+
+This command loads the model and SQL settings from `config.toml`, creates tables by default (`--create-tables`), and starts a FastAPI server. You can also pass `--graphql` to mount GraphQL at `/graphql`. For full config structure and all supported keys, see [CLI Configuration](/integrations/cli).
+
+## Configuration
+
+MD-Models provides flexible configuration through `RestApiConfig` to control security and endpoint availability. This allows you to customize your API's behavior without modifying the generated endpoints directly. You can secure your API with authentication, restrict access to specific operations, and control which endpoints are available for each model in your data schema.
+
+The `RestApiConfig` class accepts two main configuration objects: `SecurityConfig` for authentication and authorization, and `EndpointConfig` for controlling endpoint availability. These configurations can be applied globally or on a per-model basis, giving you fine-grained control over your API's security and functionality.
+
+### Security Configuration
+
+Add authentication and authorization using `SecurityConfig`. This configuration allows you to protect your API endpoints using FastAPI's dependency injection system. You can apply security requirements globally to all endpoints, or customize them per model and per operation type.
+
+Security dependencies are FastAPI `Depends` objects that execute before the endpoint handler runs. They can verify authentication tokens, check user permissions, validate API keys, or perform any other security checks. If a dependency raises an exception (like `HTTPException`), the request is rejected before reaching your endpoint handler.
+
+The example below shows how to implement HTTP Basic authentication:
+
+```python
+from fastapi import Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from mdmodels.rest import SecurityConfig
+
+security_scheme = HTTPBasic()
+
+def require_login(credentials: HTTPBasicCredentials = Depends(security_scheme)):
+    if credentials.username != "admin" or credentials.password != "secret":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"username": credentials.username}
+
+# Global dependencies applied to all endpoints
+security = SecurityConfig(
+    global_dependencies=[Depends(require_login)]
+)
+
+# Per-model, per-operation dependencies
+security = SecurityConfig(
+    global_dependencies=[Depends(require_login)],
+    per_model={
+        "Experiment": {
+            "delete": [Depends(only_admin)],
+            "create": [Depends(only_admin)],
+        }
+    }
+)
+```
+
+In the first example, `global_dependencies` applies the authentication check to every endpoint in your API. This is useful when you want uniform security across all models. The second example demonstrates more granular control: you can combine global dependencies (applied to all endpoints) with per-model, per-operation dependencies. This allows you to have different security requirements for different operations. For instance, requiring admin privileges only for destructive operations like `delete` and `create`, while allowing regular authenticated users to perform read operations.
+
+You can use any FastAPI dependency pattern here, including OAuth2, JWT tokens, API keys, or custom authentication schemes. The dependencies execute in order, and all must pass for the request to proceed to the endpoint handler.
+
+### Endpoint Configuration
+
+Control which endpoints are enabled for each model using `EndpointConfig`. This is particularly useful when you want to expose certain models as read-only, hide internal models from public access, or create different API access levels for different parts of your data model.
+
+Endpoint configuration works at the model level, meaning you can enable or disable entire sets of endpoints for specific models. This is useful for scenarios like exposing public data models while keeping administrative models private, or creating read-only APIs for certain models while allowing full CRUD operations on others.
+
+The configuration supports three approaches: disabling all endpoints for a model, using predefined operation sets (like `READ_OPERATIONS` or `WRITE_OPERATIONS`), or specifying a custom list of allowed operations. Here are some common patterns:
+
+```python
+from mdmodels.rest import EndpointConfig
+from mdmodels.rest.config import READ_OPERATIONS, WRITE_OPERATIONS
+
+# Disable all endpoints for a specific model
+endpoints = EndpointConfig(
+    per_model={
+        "InternalModel": "disable",
+    }
+)
+
+# Enable only read operations
+endpoints = EndpointConfig(
+    per_model={
+        "Experiment": READ_OPERATIONS,  # Only list, retrieve, search
+        "Molecule": READ_OPERATIONS,
+    }
+)
+
+# Enable specific operations
+endpoints = EndpointConfig(
+    per_model={
+        "ReadOnlyModel": ["list", "retrieve"],
+    }
+)
+```
+
+The first example shows how to completely disable all endpoints for a model by setting it to `"disable"`. This is useful for internal models that should never be exposed via the API. The second example uses the predefined `READ_OPERATIONS` constant, which includes `"list"`, `"retrieve"`, and `"search"`, perfect for creating read-only APIs. The third example demonstrates fine-grained control by specifying exactly which operations are allowed.
+
+When endpoints are disabled or not included in the allowed operations list, they simply won't be registered with FastAPI, so they won't appear in the OpenAPI documentation and will return 404 Not Found if accessed directly.
+
+Available operations: `"create"`, `"list"`, `"retrieve"`, `"update"`, `"delete"`, and `"search"`. The `READ_OPERATIONS` constant includes `["list", "retrieve", "search"]`, while `WRITE_OPERATIONS` includes `["create", "update", "delete"]`. You can combine these or create custom operation lists as needed.
+
+## Adding GraphQL Interface
+
+You can add a GraphQL interface alongside your REST API. This gives you the best of both worlds: REST endpoints for traditional API consumers and GraphQL for clients that need flexible querying capabilities. Both interfaces work with the same underlying data models and database, ensuring consistency across your API.
+
+GraphQL is particularly useful when you need to fetch related data in a single request, avoid over-fetching (getting more data than needed), or allow clients to specify exactly which fields they want. The GraphQL interface automatically generates queries and mutations based on your markdown data model, just like the REST API does.
+
+To integrate GraphQL, you first create a GraphQL router using `create_graphql_app`, then pass it to `create_rest_app` as the `graphql_router` parameter. The router will be automatically mounted at the `/graphql` endpoint:
+
+```python
+from mdmodels.graphql import create_graphql_app
+
+# Create GraphQL router
+graphql_router = create_graphql_app(
+    db=db,
+    as_router=True,
+)
+
+# Pass to create_rest_app to mount at /graphql
+create_rest_app(
+    app=app,
+    db=db,
+    config=RestApiConfig(),
+    graphql_router=graphql_router,
+)
+```
+
+Once configured, your API will have both REST and GraphQL interfaces available simultaneously. REST endpoints follow the standard pattern at `/{model_name}/` for each model in your data schema, while GraphQL provides a single endpoint at `/graphql` where clients can execute queries and mutations. Both interfaces share the same security configuration and database connection, so any authentication or authorization you've configured applies to both.
+
+The GraphQL endpoint includes an interactive GraphQL Playground (accessible at `/graphql` in your browser) where you can explore the schema and test queries. The REST API's OpenAPI documentation (at `/docs`) and GraphQL Playground complement each other, giving developers multiple ways to understand and interact with your API.
+
+See the [GraphQL documentation](/integrations/graphql) for more details on query syntax, mutations, and advanced GraphQL features.
+
+## Available Endpoints
+
+`create_rest_app()` automatically creates the following endpoints for each model:
+
+- **POST `/{model_name}/`** - Create a new instance
+- **GET `/{model_name}/`** - List instances with pagination (`skip`, `limit`, `full` parameters)
+- **POST `/{model_name}/search`** - Advanced search with filters and ordering
+- **POST `/{model_name}/vectorsearch`** - Semantic search with filters and ordering
+- **GET `/{model_name}/{item_id}`** - Retrieve a single instance by ID
+- **PUT `/{model_name}/{item_id}`** - Update an existing instance
+- **DELETE `/{model_name}/{item_id}`** - Delete an instance
+
+## Nested Data Insertion
+
+MD-Models automatically handles nested data structures. When you POST a complex object with relationships, it automatically:
+
+- Creates database rows for nested objects
+- Handles foreign key relationships
+- Prevents duplicate rows by reusing existing objects
+- Maintains referential integrity
+
+All GET endpoints return full document structures including relationships, reconstructing the same hierarchical object structure you sent.
+
+## Complete Example
+
+Here's a complete example with security, endpoint configuration, and GraphQL integration:
+
+```python
+from fastapi import FastAPI, Depends
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi.middleware.cors import CORSMiddleware
+
+from mdmodels import DataModel, sql
+from mdmodels.rest import create_rest_app, RestApiConfig, SecurityConfig, EndpointConfig
+from mdmodels.rest.config import READ_OPERATIONS
+from mdmodels.graphql import create_graphql_app
+
+# Load data model and create database connection
+model = DataModel.from_markdown("model.md")
+
+db = sql.DatabaseConnector(
+    library=model,
+    host="localhost",
+    port=5432,
+    username="postgres",
+    password="postgres",
+    database="postgres",
+    db_type=sql.DatabaseType.POSTGRESQL,
+)
+# Creates tables and returns SQLModel classes
+db_models = db.create_tables()
+
+# FastAPI app
+app = FastAPI(title="mdmodels CRUD API", version="0.1.0")
+
+# CORS middleware (optional)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Authentication
+security_scheme = HTTPBasic()
+
+def require_login(credentials: HTTPBasicCredentials = Depends(security_scheme)):
+    if credentials.username != "admin" or credentials.password != "secret":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {"username": credentials.username}
+
+# REST API configuration
+config = RestApiConfig(
+    security=SecurityConfig(
+        global_dependencies=[Depends(require_login)]
+    ),
+    endpoints=EndpointConfig(
+        per_model={
+            "Experiment": READ_OPERATIONS,
+            "Molecule": READ_OPERATIONS,
+        }
+    ),
+)
+
+# Optional GraphQL integration
+graphql_router = create_graphql_app(
+    db=db,
+    as_router=True,
+)
+
+# Create REST API
+create_rest_app(
+    app=app,
+    db=db,
+    config=config,
+    graphql_router=graphql_router,
+)
+
+# Run with: uvicorn api:app --reload
+```
+
+The API will be available at `http://localhost:8000` with REST endpoints at `/{model_name}/`, GraphQL at `/graphql`, and interactive documentation at `/docs`.
