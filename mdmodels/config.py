@@ -89,7 +89,7 @@ class SQLConfig(BaseModel):
     port: Optional[int] = None
     username: Optional[str] = None
     password: Optional[str] = None
-    database: str
+    database: Optional[str] = None
     tables: Dict[str, SQLTableConfig] = Field(default_factory=dict)
 
 
