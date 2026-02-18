@@ -20,12 +20,13 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 from functools import partial
-from typing import Iterable, Any
+from typing import Any, Dict, Iterable
 
-from bigtree import Node, findall, BaseNode
-from dotted_dict import DottedDict
-from mdmodels_core import DataModel
-from pydantic import computed_field, BaseModel, ConfigDict
+from bigtree.node.basenode import BaseNode
+from bigtree.node.node import Node
+from bigtree.tree.search import findall
+from mdmodels_core import DataModel  # type: ignore
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class PathFactory(BaseModel):
@@ -46,8 +47,9 @@ class PathFactory(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    @computed_field(return_type=DottedDict[str, Node])
-    def object_trees(self):
+    @computed_field(return_type=Dict[str, Node])
+    @property
+    def object_trees(self) -> Dict[str, Node]:
         """
         Compute the object trees for the data model.
 
@@ -55,7 +57,7 @@ class PathFactory(BaseModel):
             DottedDict[str, Node]: A dictionary where keys are object names and values are root nodes of the object trees.
         """
         type_mapping = _extract_type_mapping(self.model)
-        object_trees = DottedDict()
+        object_trees = dict()
 
         for obj in self.model.model.objects:
             root = Node(obj.name, is_type=True)
@@ -92,10 +94,10 @@ class PathFactory(BaseModel):
         """
         node = self._traverse_by_dot_path(dot_path)
 
-        if node.is_type:  # noqa
+        if node.is_type:  # pyright: ignore[reportAttributeAccessIssue]
             raise ValueError(f"Path '{dot_path}' is a type path.")
 
-        return node.parent.name, node.name
+        return node.parent.name, node.name  # pyright: ignore[reportOptionalMemberAccess]
 
     def get_all_paths(
         self,
@@ -118,17 +120,17 @@ class PathFactory(BaseModel):
                 f"Available objects: {list(self.object_trees.keys())}"
             )
 
-        root = self.object_trees[root]
+        root = self.object_trees[root]  # pyright: ignore[reportAssignmentType]
 
         if leafs:
             return [
                 self._node_path_to_json_path(node.node_path)
-                for node in findall(root, lambda n: not n.children)
+                for node in findall(root, lambda n: not n.children)  # pyright: ignore[reportArgumentType]
             ]
         else:
             return [
                 self._node_path_to_json_path(node.node_path)
-                for node in findall(root, lambda n: True)
+                for node in findall(root, lambda n: True)  # pyright: ignore[reportArgumentType]
             ]
 
     def get_type_paths(
@@ -157,15 +159,15 @@ class PathFactory(BaseModel):
                 f"Available objects: {list(self.object_trees.keys())}"
             )
 
-        root = self.object_trees[root]
+        root = self.object_trees[root]  # pyright: ignore[reportAssignmentType]
 
         if attr:
             nodes = findall(
-                root,
+                root,  # pyright: ignore[reportArgumentType]
                 partial(self._find_node_attribute, name=dtype, attr=attr),
             )
         else:
-            nodes = findall(root, partial(self._find_node, name=dtype))
+            nodes = findall(root, partial(self._find_node, name=dtype))  # pyright: ignore[reportArgumentType]
 
         return [self._node_path_to_json_path(node.node_path) for node in nodes]
 
@@ -212,9 +214,9 @@ class PathFactory(BaseModel):
         path = []
 
         for node in nodes:
-            if node.is_type:
+            if node.is_type:  # pyright: ignore[reportAttributeAccessIssue]
                 continue
-            name = node.name + "[*]" if node.is_array else node.name
+            name = node.name + "[*]" if node.is_array else node.name  # pyright: ignore[reportAttributeAccessIssue]
             path.append(name)
 
         return "$." + ".".join(path)
