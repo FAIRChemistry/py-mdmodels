@@ -20,19 +20,20 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 import builtins
-from typing import Union, get_origin, get_args, Annotated
 import warnings
+from typing import TYPE_CHECKING, Annotated, Union, get_args, get_origin
 
 import forge
+from forge import FParameter, FSignature, sign
 
-from forge import FParameter, sign, FSignature
-
-from mdmodels import DataModel
-from mdmodels.units.unit_definition import UnitDefinition, BaseUnit
+from mdmodels.units.unit_definition import BaseUnit, UnitDefinition
 from mdmodels.utils import extract_dtype
 
+if TYPE_CHECKING:
+    from mdmodels.datamodel import DataModel
 
-def apply_adder_methods(cls: type[DataModel]):
+
+def apply_adder_methods(cls: "type[DataModel]"):
     """
     Apply adder methods to the given DataModel class.
 
@@ -77,7 +78,7 @@ def is_builtin_type(obj):
 
 
 def _create_add_method(
-    coll_cls: type[DataModel],
+    coll_cls: "type[DataModel]",
     field: str,
 ):
     """
@@ -100,7 +101,7 @@ def _create_add_method(
     return add_method
 
 
-def _create_signature(coll_cls: type[DataModel]):
+def _create_signature(coll_cls: "type[DataModel]"):
     """
     Create a signature for the adder method.
 
