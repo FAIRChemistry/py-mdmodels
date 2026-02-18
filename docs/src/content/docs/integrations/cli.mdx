@@ -24,15 +24,23 @@ Another advantage is alignment across teams: data engineers, backend developers,
 
 <Steps>
 
-1. **Run REST API**
+1. **Initialize database tables**
+
+   ```bash
+   mdmodels init --config config.toml
+   ```
+
+   By default this creates SQL tables from your model. Use `--create-tables false` if you only want to validate config and connection setup.
+
+2. **Run REST API**
 
    ```bash
    mdmodels rest --config config.toml
    ```
 
-   Optional flags include `--host`, `--port`, `--name`, `--graphql`, `--env`, and `--create-tables`.
+   Optional flags include `--host`, `--port`, `--name`, `--graphql`, and `--env`.
 
-2. **Run MCP Server**
+3. **Run MCP Server**
 
    ```bash
    mdmodels mcp --config config.toml --transport stdio
@@ -40,23 +48,29 @@ Another advantage is alignment across teams: data engineers, backend developers,
 
    Supported transports are `stdio`, `sse`, and `streamable-http`. For non-stdio transports, you can also set `--host` and `--port`.
 
-3. **Install MCP in Claude Desktop**
+4. **Install MCP in Claude Desktop**
 
    ```bash
-   mdmodels install claude-desktop --config config.toml --name mdmodels
+   mdmodels install claude-desktop --config config.toml --name mdmodels --project .
    ```
 
-   This writes an MCP server entry to Claude Desktop config and runs it via `uv run mdmodels mcp`.
+   This writes an MCP server entry to Claude Desktop config and runs it via `uv --project <project> run mdmodels mcp --config <config>`.
 
 </Steps>
 
 ## Typical Workflows
 
-### 1) Build and test your API locally
+### 1) Initialize storage, then build and test your API locally
 
 This is the fastest way to move from markdown schema to a working HTTP API.
 
-Start with:
+Start by creating tables:
+
+```bash
+mdmodels init --config config.toml
+```
+
+Then run the API:
 
 ```bash
 mdmodels rest --config config.toml --host 127.0.0.1 --port 8800
@@ -91,7 +105,7 @@ mdmodels mcp --config config.toml --transport stdio
 For Claude Desktop, register it once:
 
 ```bash
-mdmodels install claude-desktop --config config.toml --name mdmodels
+mdmodels install claude-desktop --config config.toml --name mdmodels --project .
 ```
 
 Typical flow:
@@ -260,9 +274,9 @@ This is especially useful for credentials and provider keys. Keeping sensitive v
 
 ## Operational Notes
 
-- `--create-tables` is enabled by default for `mdmodels rest`, which is convenient for development and first-time setup.
-- For stricter production workflows, run schema setup as a controlled deployment step and disable table creation at startup.
-- Use explicit `--host` and `--port` values in infrastructure environments to avoid accidental defaults.
+- `mdmodels init` creates tables by default (`--create-tables true`).
+- For stricter production workflows, run schema setup as a controlled deployment step and use `mdmodels init --create-tables false` when you only want startup checks.
+- Use explicit `--host` and `--port` values in infrastructure environments to avoid accidental defaults for `rest` and non-`stdio` MCP transports.
 
 ## Troubleshooting Tips
 

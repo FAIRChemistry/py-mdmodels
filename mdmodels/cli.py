@@ -22,23 +22,31 @@ app = typer.Typer(
 )
 
 
-def _load_app_config(config: Path) -> AppConfig:
-    """Load config and normalize contained paths to absolute.
+@app.command()
+def init(
+    config: Path = typer.Option(
+        ...,
+        help="Path to the configuration TOML file",
+    ),
+    create_tables: bool = typer.Option(
+        default=True,
+        help="Create database tables on startup",
+    ),
+):
+    """Initialize a new MDModels project.
 
-    Args:
-        config: Path to the configuration file
-
-    Returns:
-        AppConfig: Loaded and normalized configuration
+    This command creates a new MDModels project with a default configuration file.
     """
-    config_path = config if config.is_absolute() else (Path.cwd() / config)
-    config_path = config_path.resolve()
+    from mdmodels.sql.connector import DatabaseConnector
 
-    app_config = AppConfig.from_toml(config_path)
-    if not app_config.model.path.is_absolute():
-        app_config.model.path = (config_path.parent / app_config.model.path).resolve()
+    app_config = _load_app_config(config)
 
-    return app_config
+    db = DatabaseConnector.from_config(app_config)
+
+    if create_tables:
+        db.create_tables()
+
+    print("[green]Initialized MD-Models project[/green]")
 
 
 @app.command()
@@ -52,9 +60,6 @@ def rest(
     graphql: bool = typer.Option(default=False, help="Enable GraphQL endpoint"),
     env: Path = typer.Option(
         default=None, help="Path to .env file for environment variables"
-    ),
-    create_tables: bool = typer.Option(
-        default=True, help="Create database tables on startup"
     ),
 ):
     """Run MDModels as a REST API server.
@@ -75,9 +80,6 @@ def rest(
 
     rest_config = RestApiConfig.from_config(app_config)
     db = DatabaseConnector.from_config(app_config)
-
-    if create_tables:
-        db.create_tables()
 
     if name is None:
         name = cast(str, db.db_models._rust_model.model.name)  # pyright: ignore[reportOptionalMemberAccess]
@@ -153,28 +155,6 @@ def mcp(
             raise ValueError(f"Invalid transport: {transport}")
 
 
-def get_claude_config_path() -> Path | None:
-    """Get Claude Desktop config directory based on platform.
-
-    Returns:
-        Path to Claude Desktop config directory, or None if not found
-    """
-    if sys.platform == "win32":
-        path = Path(Path.home(), "AppData", "Roaming", "Claude")
-    elif sys.platform == "darwin":
-        path = Path(Path.home(), "Library", "Application Support", "Claude")
-    elif sys.platform.startswith("linux"):
-        path = Path(
-            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"), "Claude"
-        )
-    else:
-        return None
-
-    if path.exists():
-        return path
-    return None
-
-
 @app.command()
 def install(
     client: Literal["claude-desktop"] = typer.Argument(
@@ -234,6 +214,47 @@ def install(
         raise typer.Exit(code=1) from e
 
     print(f"[green]Successfully installed '{name}' in Claude Desktop[/green]")
+
+
+def _load_app_config(config: Path) -> AppConfig:
+    """Load config and normalize contained paths to absolute.
+
+    Args:
+        config: Path to the configuration file
+
+    Returns:
+        AppConfig: Loaded and normalized configuration
+    """
+    config_path = config if config.is_absolute() else (Path.cwd() / config)
+    config_path = config_path.resolve()
+
+    app_config = AppConfig.from_toml(config_path)
+    if not app_config.model.path.is_absolute():
+        app_config.model.path = (config_path.parent / app_config.model.path).resolve()
+
+    return app_config
+
+
+def get_claude_config_path() -> Path | None:
+    """Get Claude Desktop config directory based on platform.
+
+    Returns:
+        Path to Claude Desktop config directory, or None if not found
+    """
+    if sys.platform == "win32":
+        path = Path(Path.home(), "AppData", "Roaming", "Claude")
+    elif sys.platform == "darwin":
+        path = Path(Path.home(), "Library", "Application Support", "Claude")
+    elif sys.platform.startswith("linux"):
+        path = Path(
+            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"), "Claude"
+        )
+    else:
+        return None
+
+    if path.exists():
+        return path
+    return None
 
 
 if __name__ == "__main__":
