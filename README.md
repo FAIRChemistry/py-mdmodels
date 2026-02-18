@@ -50,18 +50,27 @@ uv pip install "mdmodels[chat]"
 # Graph database tools
 uv pip install "mdmodels[graph]"
 
-# SQL tools
-uv pip install "mdmodels[sql]"
+# SQL backends
+uv pip install "mdmodels[postgres]"
+uv pip install "mdmodels[mysql]"
+uv pip install "mdmodels[sqlserver]"
 
-# All available extras
-uv pip install "mdmodels[all]"
+# Vector search (pgvector + embeddings)
+uv pip install "mdmodels[pgvector]"
+
+# API integrations
+uv pip install "mdmodels[rest]"
+uv pip install "mdmodels[graphql]"
+
+# MCP integration
+uv pip install "mdmodels[mcp]"
 ```
 
 ## Documentation 📚
 
 Guides, tutorials, and API usage:
 
-- https://py-mdmodels.vercel.app/
+- [py-mdmodels.vercel.app](https://py-mdmodels.vercel.app/)
 
 ## Development
 
