@@ -4,90 +4,86 @@
 ![PyPI - Version](https://img.shields.io/pypi/v/mdmodels)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/mdmodels)
 
-This is the Python package for the [MDModels Rust crate](https://github.com/FairCHemistry/md-models) and hosts a set of tools to work with metadata models defined in markdown.
+Build metadata-first Python apps from Markdown-defined models. `mdmodels` is the Python package for the [MDModels Rust crate](https://github.com/FairCHemistry/md-models), with batteries included for data modeling, AI workflows, SQL/graph backends, and API generation. 🚀
 
-**Whats in the bag?**
+## Why MD-Models?
 
-- **Core** - The core functionality to work with MDModels
-- **PyDantic** - Generate Pydantic models (on steroids) from MDModels
-- **LLM tools** - Use LLMs to extract, transform and explore data
-- **SQL tools** - Create SQL databases and query them with SQLAlchemy
-- **Graph tools** - Create graph databases and query them with SPARQL
+- 🧩 **Model once** in Markdown, then generate strongly typed Python models
+- 🤖 **Work with AI** for extraction, mapping, Q&A, and similarity search
+- 🗃️ **Persist and query** with SQL, vectors, and graph databases
+- 🌐 **Ship interfaces fast** via REST, GraphQL, and MCP helpers
 
-> **Note:** This package is work in progress and the API will likely change in the future. Issues and contributions are very welcome!
+## What's in the bag? 🎒
+
+- 🧱 **Core model tooling** - Load, inspect, and work with metadata models
+- 🐍 **Pydantic generation** - Generate rich Python model classes from MD-Models
+- 🤖 **LLM workflows** - Extract, map, search, and answer questions over metadata
+- 🗄️ **SQL and vector search** - Build SQL-backed stores and pgvector-style embedding workflows
+- 🕸️ **Graph databases** - Build and query graph representations of your models
+- 🌐 **API generation** - Expose model-backed services through REST and GraphQL helpers
+- 🔌 **MCP integrations** - Create MCP-compatible interfaces for model and SQL workflows
+
+> **Note:** This package is actively evolving and APIs may change. Feedback and contributions are welcome. 🙌
 
 ## Installation
 
-To install the package, you can use the following command:
+Install the base package:
 
 ```bash
 pip install mdmodels
+```
 
+Install optional feature sets:
+
+```bash
 # LLM tools
 pip install mdmodels[chat]
 
-# Graph tools
+# Graph database tools
 pip install mdmodels[graph]
 
 # SQL tools
 pip install mdmodels[sql]
 
-# All tools
+# All available extras
 pip install mdmodels[all]
 ```
 
-## Examples
+## Documentation 📚
 
-To get you started, have a look at the [examples](./examples) folder, featuring notebooks that showcase the usage of the package. This is what is available right now:
+Guides, tutorials, and API usage:
 
-- [Core](./examples/basic)
-  - [Basic](./examples/basic) - Basic usage of the core functionality
-- [LLM tools](./examples/llm)
-  - [Question Answering](./examples/llm/answering) - Use LLMs to answer questions about the data
-  - [Metadata Extraction](./examples/llm/extraction) - Use LLMs to extract metadata from text and to databases
-  - [Metadata Mapping](./examples/llm/mapping) - Use LLMs to map metadata from one format to another
-  - [Similarity Search](./examples/llm/embedding) - Use LLMs to find similar items in a database
-- [SQL tools](./examples/sql)
-  - [Basic](./examples/sql/basic) - Create a SQL database and interact with it
-- [Graph tools](./examples/graph)
-  - [Basic](./examples/graph/basic) - Create a graph database and interact with it
+- https://py-mdmodels.vercel.app/
 
 ## Development
 
-To run the tests for the package, use the following command:
+Run all tests:
 
 ```bash
-# Execute all tests defined in the project
 poetry run pytest
 ```
 
-To run the tests and generate a detailed coverage report, which shows how much of your code is tested, use:
+Run tests with coverage report:
 
 ```bash
-# Run tests with coverage analysis and generate an HTML report
 poetry run pytest --cov=mdmodels --cov-report=html
 ```
 
-If you want to run the tests within a Docker container, which can help ensure a consistent environment, use the following commands:
+Run tests in Docker:
 
 ```bash
-# Build the Docker image, specifying the Python version to use
 docker build --build-arg PYTHON_VERSION=3.12 -t mdmodels .
-
-# Run the Docker container, mounting the current directory to /app in the container
 docker run -v $(pwd):/app mdmodels
 ```
 
-Alternatively, you can use the `run-tests.sh` script to build the Docker image and run the tests:
+Use the helper script:
 
 ```bash
-# Build the Docker image and run the tests
 ./run-tests.sh --python=3.12
 ```
 
-To skip tests that are considered expensive and require additional services (like databases or external APIs), you can run:
+Skip expensive tests:
 
 ```bash
-# Execute tests while excluding those marked as expensive
 poetry run pytest -m "not expensive"
 ```
