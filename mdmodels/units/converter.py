@@ -26,21 +26,21 @@ from json import JSONDecodeError
 
 import astropy.units as u
 from astropy.units import (
-    Unit,
-    PrefixUnit,
-    IrreducibleUnit,
-    UnitBase,
     CompositeUnit,
+    IrreducibleUnit,
+    PrefixUnit,
+    Unit,
+    UnitBase,
 )
 
 from .mappings import UNIT_MAPPING
-from .unit_definition import UnitType, UnitDefinition
+from .unit_definition import UnitDefinition, UnitType
 
 # Define custom units and add them to the astropy unit registry
 CUSTOM_UNITS = [
     u.def_unit("absorbance", u.dimensionless_unscaled),
-    u.def_unit("M", u.mol / u.L, prefixes=True),
-    u.def_unit("kDa", 1e3 * u.Da),
+    u.def_unit("M", u.mol / u.L, prefixes=True),  # pyright: ignore[reportAttributeAccessIssue]
+    u.def_unit("kDa", 1e3 * u.Da),  # pyright: ignore[reportAttributeAccessIssue]
     u.def_unit("dimensionless", u.dimensionless_unscaled),
 ]
 
@@ -77,11 +77,14 @@ def _convert_unit_string(unit_string: str):
         UnitDefinition: The converted unit definition.
     """
     unit = Unit(unit_string)
-    unit_def = UnitDefinition(id=unit.to_string(), name=unit.to_string())
+    unit_def = UnitDefinition(
+        id=unit.to_string(),  # pyright: ignore[reportCallIssue]
+        name=unit.to_string(),  # pyright: ignore[reportCallIssue]
+    )
 
     if isinstance(unit, CompositeUnit):
         _process_composite_unit(unit, unit_def)
-    elif len(unit.decompose().bases) > 1:
+    elif len(unit.decompose().bases) > 1:  # pyright: ignore[reportAttributeAccessIssue]
         _process_composite_unit(unit.decompose(), unit_def)
     else:
         _process_base_unit(unit_def, unit, 1)
@@ -151,32 +154,32 @@ def _process_base_unit(
         base (Unit | PrefixUnit | IrreducibleUnit | UnitBase): The base unit to process.
         exponent (int): The exponent of the unit.
     """
-    if base.is_equivalent(u.liter):
-        scale = base.to(u.liter)
+    if base.is_equivalent(u.liter):  # pyright: ignore[reportAttributeAccessIssue]
+        scale = base.to(u.liter)  # pyright: ignore[reportAttributeAccessIssue]
         unit_def.add_to_base_units(
             kind=UnitType.LITRE,
             exponent=exponent,
-            scale=int(math.log10(scale)),
+            scale=int(math.log10(scale)),  # pyright: ignore[reportArgumentType]
             multiplier=1.0,
         )
-    elif base.is_equivalent(u.m):
-        scale = base.to(u.m)
+    elif base.is_equivalent(u.m):  # pyright: ignore[reportAttributeAccessIssue]
+        scale = base.to(u.m)  # pyright: ignore[reportAttributeAccessIssue]
         unit_def.add_to_base_units(
             kind=UnitType.METRE,
             exponent=exponent,
-            scale=int(math.log10(scale)),
+            scale=int(math.log10(scale)),  # pyright: ignore[reportArgumentType]
             multiplier=1.0,
         )
-    elif base.is_equivalent(u.gram):
-        scale = base.to(u.gram)
+    elif base.is_equivalent(u.gram):  # pyright: ignore[reportAttributeAccessIssue]
+        scale = base.to(u.gram)  # pyright: ignore[reportAttributeAccessIssue]
         unit_def.add_to_base_units(
             kind=UnitType.GRAM,
             exponent=exponent,
-            scale=int(math.log10(scale)),
+            scale=int(math.log10(scale)),  # pyright: ignore[reportArgumentType]
             multiplier=1.0,
         )
     elif isinstance(base, PrefixUnit):
-        base = base.decompose()
+        base = base.decompose()  # pyright: ignore[reportAssignmentType]
         unit_def.add_to_base_units(
             kind=UNIT_MAPPING[base.bases[0].to_string()],
             exponent=exponent,
@@ -184,8 +187,8 @@ def _process_base_unit(
             multiplier=1.0,
         )
     elif isinstance(base, Unit):
-        if base.is_equivalent(u.second):
-            base = base.decompose()
+        if base.is_equivalent(u.second):  # pyright: ignore[reportAttributeAccessIssue]
+            base = base.decompose()  # pyright: ignore[reportAssignmentType]
             unit_def.add_to_base_units(
                 kind=UNIT_MAPPING[base.bases[0].to_string()],
                 exponent=exponent,
