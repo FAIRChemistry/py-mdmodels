@@ -27,26 +27,34 @@ Build metadata-first Python apps from Markdown-defined models. `mdmodels` is the
 
 ## Installation
 
+We recommend using `uv` for a fast, reproducible Python workflow.
+
+Install `uv` (if needed):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 Install the base package:
 
 ```bash
-pip install mdmodels
+uv pip install mdmodels
 ```
 
 Install optional feature sets:
 
 ```bash
 # LLM tools
-pip install mdmodels[chat]
+uv pip install "mdmodels[chat]"
 
 # Graph database tools
-pip install mdmodels[graph]
+uv pip install "mdmodels[graph]"
 
 # SQL tools
-pip install mdmodels[sql]
+uv pip install "mdmodels[sql]"
 
 # All available extras
-pip install mdmodels[all]
+uv pip install "mdmodels[all]"
 ```
 
 ## Documentation 📚
@@ -60,13 +68,13 @@ Guides, tutorials, and API usage:
 Run all tests:
 
 ```bash
-poetry run pytest
+uv run pytest
 ```
 
 Run tests with coverage report:
 
 ```bash
-poetry run pytest --cov=mdmodels --cov-report=html
+uv run pytest --cov=mdmodels --cov-report=html
 ```
 
 Run tests in Docker:
@@ -85,5 +93,5 @@ Use the helper script:
 Skip expensive tests:
 
 ```bash
-poetry run pytest -m "not expensive"
+uv run pytest -m "not expensive"
 ```

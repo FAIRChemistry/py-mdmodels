@@ -5,10 +5,16 @@ description: Install MD-Models and get ready to start using it.
 
 ## Installing MD-Models
 
-Before you can start using MD-Models, you need to install it. The simplest way is using pip:
+Before you can start using MD-Models, install it with `uv`:
 
 ```bash
-pip install mdmodels
+uv pip install mdmodels
+```
+
+If you do not have `uv` installed yet:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 If you're working in a Jupyter notebook or similar environment, you may also want to run this helper function to ensure async operations work correctly:
