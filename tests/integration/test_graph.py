@@ -1,8 +1,10 @@
 import os
+
 import pytest
 from neomodel import db
 
-from mdmodels.graph import connect_to_neo4j, generate_neomodel
+from mdmodels.datamodel import DataModel
+from mdmodels.graph import GraphConnector
 
 
 class TestGraph:
@@ -28,7 +30,7 @@ class TestGraph:
 
         NEO4J_PORT = int(NEO4J_PORT)
 
-        connect_to_neo4j(
+        GraphConnector(
             host=NEO4J_HOST,
             user=NEO4J_USER,
             password=NEO4J_PASSWORD,
@@ -39,7 +41,8 @@ class TestGraph:
         db.cypher_query("MATCH (n) DETACH DELETE n")
 
         # Act
-        no4j_models = generate_neomodel(path="tests/fixtures/model_graph.md")
+        model = DataModel.from_markdown("tests/fixtures/model_graph.md")
+        no4j_models = model.to_neomodel()
         Person = no4j_models["Person"]
         Hobby = no4j_models["Hobby"]
 
@@ -67,6 +70,6 @@ class TestGraph:
         _, rel, _ = all_relationships[-1]
 
         assert rel.type == "LIKES_MOST", "The relationship should be LIKES_MOST"
-        assert (
-            rel._properties["since"] == "2024-01-01"
-        ), "The relationship should have the correct properties"
+        assert rel._properties["since"] == "2024-01-01", (
+            "The relationship should have the correct properties"
+        )
