@@ -37,13 +37,25 @@ Each object type in your markdown becomes a set of REST endpoints with full CRUD
 3. **Create FastAPI Application**
 
    ```python
-   app = fastapi.FastAPI(title="My CRUD API",
-       version="0.1.0")
+   from fastapi import FastAPI
+   from mdmodels.rest import RestApiConfig, EndpointConfig, ALL_OPERATIONS
+
+   app = FastAPI(title="My CRUD API", version="0.1.0")
+
+   # IMPORTANT: endpoints are generated only for configured models
+   rest_config = RestApiConfig(
+       endpoints=EndpointConfig(
+           root={
+               "Experiment": ALL_OPERATIONS,
+               "Molecule": ALL_OPERATIONS,
+           }
+       )
+   )
    
    rest.create_rest_app(
         app=app,
         db=db,
-        config=RestApiConfig(),
+        config=rest_config,
     )
    ```
 
@@ -71,7 +83,7 @@ This command loads the model and SQL settings from `config.toml`, creates tables
 
 MD-Models provides flexible configuration through `RestApiConfig` to control security and endpoint availability. This allows you to customize your API's behavior without modifying the generated endpoints directly. You can secure your API with authentication, restrict access to specific operations, and control which endpoints are available for each model in your data schema.
 
-The `RestApiConfig` class accepts two main configuration objects: `SecurityConfig` for authentication and authorization, and `EndpointConfig` for controlling endpoint availability. These configurations can be applied globally or on a per-model basis, giving you fine-grained control over your API's security and functionality.
+The `RestApiConfig` class accepts two main configuration objects: `SecurityConfig` for authentication and authorization, and `EndpointConfig` for controlling endpoint availability. `EndpointConfig` is a mapping of model names to rules (`"disable"` or a list of allowed operations).
 
 ### Security Configuration
 
@@ -124,36 +136,36 @@ The configuration supports three approaches: disabling all endpoints for a model
 
 ```python
 from mdmodels.rest import EndpointConfig
-from mdmodels.rest.config import READ_OPERATIONS, WRITE_OPERATIONS
+from mdmodels.rest import READ_OPERATIONS, WRITE_OPERATIONS
 
 # Disable all endpoints for a specific model
 endpoints = EndpointConfig(
-    per_model={
+    root={
         "InternalModel": "disable",
     }
 )
 
 # Enable only read operations
 endpoints = EndpointConfig(
-    per_model={
-        "Experiment": READ_OPERATIONS,  # Only list, retrieve, search
+    root={
+        "Experiment": READ_OPERATIONS,  # Only list, retrieve
         "Molecule": READ_OPERATIONS,
     }
 )
 
 # Enable specific operations
 endpoints = EndpointConfig(
-    per_model={
+    root={
         "ReadOnlyModel": ["list", "retrieve"],
     }
 )
 ```
 
-The first example shows how to completely disable all endpoints for a model by setting it to `"disable"`. This is useful for internal models that should never be exposed via the API. The second example uses the predefined `READ_OPERATIONS` constant, which includes `"list"`, `"retrieve"`, and `"search"`, perfect for creating read-only APIs. The third example demonstrates fine-grained control by specifying exactly which operations are allowed.
+The first example shows how to completely disable all endpoints for a model by setting it to `"disable"`. This is useful for internal models that should never be exposed via the API. The second example uses the predefined `READ_OPERATIONS` constant, which includes `"list"` and `"retrieve"`, perfect for creating read-only APIs. The third example demonstrates fine-grained control by specifying exactly which operations are allowed.
 
 When endpoints are disabled or not included in the allowed operations list, they simply won't be registered with FastAPI, so they won't appear in the OpenAPI documentation and will return 404 Not Found if accessed directly.
 
-Available operations: `"create"`, `"list"`, `"retrieve"`, `"update"`, `"delete"`, and `"search"`. The `READ_OPERATIONS` constant includes `["list", "retrieve", "search"]`, while `WRITE_OPERATIONS` includes `["create", "update", "delete"]`. You can combine these or create custom operation lists as needed.
+Available operations: `"create"`, `"list"`, `"retrieve"`, `"update"`, `"delete"`, `"search"`, and `"vectorsearch"`. The `READ_OPERATIONS` constant includes `["list", "retrieve"]`, while `WRITE_OPERATIONS` includes `["create", "update", "delete"]`. You can combine these, use `ALL_OPERATIONS`, or create custom operation lists as needed.
 
 ## Adding GraphQL Interface
 
@@ -176,7 +188,14 @@ graphql_router = create_graphql_app(
 create_rest_app(
     app=app,
     db=db,
-    config=RestApiConfig(),
+    config=RestApiConfig(
+        endpoints=EndpointConfig(
+            root={
+                "Experiment": ALL_OPERATIONS,
+                "Molecule": ALL_OPERATIONS,
+            }
+        )
+    ),
     graphql_router=graphql_router,
 )
 ```
@@ -220,8 +239,14 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 
 from mdmodels import DataModel, sql
-from mdmodels.rest import create_rest_app, RestApiConfig, SecurityConfig, EndpointConfig
-from mdmodels.rest.config import READ_OPERATIONS
+from mdmodels.rest import (
+    create_rest_app,
+    RestApiConfig,
+    SecurityConfig,
+    EndpointConfig,
+    READ_OPERATIONS,
+    ALL_OPERATIONS,
+)
 from mdmodels.graphql import create_graphql_app
 
 # Load data model and create database connection
@@ -265,9 +290,9 @@ config = RestApiConfig(
         global_dependencies=[Depends(require_login)]
     ),
     endpoints=EndpointConfig(
-        per_model={
+        root={
             "Experiment": READ_OPERATIONS,
-            "Molecule": READ_OPERATIONS,
+            "Molecule": ALL_OPERATIONS,
         }
     ),
 )
@@ -289,4 +314,4 @@ create_rest_app(
 # Run with: uvicorn api:app --reload
 ```
 
-The API will be available at `http://localhost:8000` with REST endpoints at `/{model_name}/`, GraphQL at `/graphql`, and interactive documentation at `/docs`.
+The API will be available at `http://localhost:8000` with REST endpoints for configured models, GraphQL at `/graphql`, and interactive documentation at `/docs`.

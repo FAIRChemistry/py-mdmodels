@@ -45,7 +45,7 @@ GraphQL offers several advantages over traditional REST APIs: clients can reques
    app = create_graphql_app(db=db)
    ```
 
-5. **Run the Server**
+4. **Run the Server**
 
    ```bash
    uvicorn app:app --reload
@@ -93,15 +93,15 @@ The type system ensures type safety: required fields are marked as non-nullable 
 
 ## Query Fields
 
-For each model in your markdown, MD-Models creates a query field that returns a list of that type. These query fields are automatically added to the root `Query` type, which is the entry point for all GraphQL queries. The naming convention follows the plural form of your model name (e.g., `Molecule` becomes `molecules`), making the API intuitive to use.
+For each model in your markdown, MD-Models creates a query field that returns a list of that type. These query fields are automatically added to the root `Query` type, which is the entry point for all GraphQL queries. The naming convention uses a lowercased model name (e.g., `Molecule` becomes `molecule`).
 
 Here's what the generated query fields look like:
 
 ```graphql
 type Query {
-  molecules(limit: Int = 100, offset: Int = 0): [Molecule!]!
-  reactions(limit: Int = 100, offset: Int = 0): [Reaction!]!
-  experiments(limit: Int = 100, offset: Int = 0): [Experiment!]!
+  molecule(limit: Int = 100, offset: Int = 0): [Molecule!]!
+  reaction(limit: Int = 100, offset: Int = 0): [Reaction!]!
+  experiment(limit: Int = 100, offset: Int = 0): [Experiment!]!
 }
 ```
 
@@ -109,7 +109,7 @@ Example without pagination or semantic search:
 
 ```graphql
 {
-  experiments {
+  experiment {
     id
     name
   }
@@ -124,13 +124,13 @@ When you have vector embeddings configured on your tables (see [Vector Search](/
 
 * `semantic_query` accepts optional text to embed and rank results by vector similarity, and if omitted, the query behaves as a plain list with pagination only.
 
-* `embedding_table` parameter accepts an optional table name whose embedding model and column should be used for the search, and if omitted, the current table's embedder is used. This is particularly useful when you want to query one type (e.g., `experiments`) using another table's embedding space (e.g., `Protein` sequences).
+* `embedding_table` parameter accepts an optional table name whose embedding model and column should be used for the search, and if omitted, the current table's embedder is used. This is particularly useful when you want to query one type (e.g., `experiment`) using another table's embedding space (e.g., `Protein` sequences).
 
 In this example, we search for experiments by protein sequence space:
 
 ```graphql
 {
-  experiments(
+  experiment(
     semantic_query: "MENFQKVEKIGEGTYGVVYKARNKLTGEVVALKKIRLEFDTDVLKVL..."
     embedding_table: "Protein"
     limit: 5
@@ -160,7 +160,7 @@ graphql_app = create_graphql_app(
     db=db,
     as_router=True,
 )
-fastapi_app.mount("/graphql", graphql_app)
+fastapi_app.include_router(graphql_app, prefix="/graphql")
 
 # Add other FastAPI routes as needed
 @fastapi_app.get("/")

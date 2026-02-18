@@ -213,9 +213,9 @@ Configure allowed operations per model in `[rest.endpoints]`:
 Experiment = ["create", "list", "retrieve", "update", "delete", "search", "vectorsearch"]
 ```
 
-If a model is omitted in `rest.endpoints`, default REST behavior applies for that model.
+If a model is omitted in `rest.endpoints`, no REST endpoints are generated for that model.
 
-This makes it easy to begin with full API generation and then tighten exposure model-by-model as your API surface evolves.
+This makes endpoint exposure explicit and predictable: you only expose models you list.
 
 Allowed values are:
 
