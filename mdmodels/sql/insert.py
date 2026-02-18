@@ -19,10 +19,11 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-import asyncio
-from typing import Any, Dict, List, Optional, Type
+from enum import Enum
+from typing import Any, Dict, List, Tuple, Type
 
 from sqlmodel import Session, SQLModel
+
 from mdmodels.datamodel import DataModel
 from mdmodels.library import CrossConnection, Library
 from mdmodels.sql.base import SQLBase
@@ -30,9 +31,9 @@ from mdmodels.sql.base import SQLBase
 
 def insert_nested(
     data: DataModel | List[DataModel],
-    library: Library,
+    library: Library[DataModel],
     session: Session,
-    models: Library,
+    models: Library[SQLBase],
 ) -> List[SQLModel]:
     """
     Insert one or multiple DataModel instances into the database.
@@ -46,41 +47,42 @@ def insert_nested(
     Returns:
         List[SQLModel]: A list of SQLModel instances representing the inserted data.
     """
-    return asyncio.run(insert_nested_async(data, library, session, models))
-
-
-async def insert_nested_async(
-    data: DataModel | List[DataModel],
-    library: Library,
-    session: Session,
-    models: Library,
-) -> List[SQLModel]:
-    """
-    Insert one or multiple DataModel instances into the database asynchronously.
-
-    Args:
-        data (DataModel | List[DataModel]): The data model instance(s) to insert.
-        library (Library): The library providing object connections.
-        session (Session): The active database session.
-        models (Library): A library containing model classes.
-
-    Returns:
-        List[SQLModel]: A list of SQLModel instances representing the inserted data.
-    """
     if not isinstance(data, list):
         data = [data]
 
-    tasks = [_to_sqlmodel(item, library, session, models) for item in data]
+    connection_cache: Dict[str, Dict[str, CrossConnection]] = {}
+    memo: Dict[Tuple[str, Any], SQLModel] = {}
+    created_rows: List[SQLModel] = []
 
-    return await asyncio.gather(*tasks)  # type: ignore
+    rows: List[SQLModel] = []
+    for item in data:
+        rows.append(
+            _to_sqlmodel(
+                item,
+                library=library,
+                session=session,
+                models=models,
+                connection_cache=connection_cache,
+                memo=memo,
+                created_rows=created_rows,
+            )
+        )
+
+    if created_rows:
+        session.add_all(created_rows)
+
+    return rows
 
 
-async def _to_sqlmodel(
-    data: DataModel | str | float | int | bool,
+def _to_sqlmodel(
+    data: DataModel,
     library: Library,
     session: Session,
     models: Library,
-) -> SQLModel | str | float | int | bool:
+    connection_cache: Dict[str, Dict[str, CrossConnection]],
+    memo: Dict[Tuple[str, Any], SQLModel],
+    created_rows: List[SQLModel],
+) -> SQLModel:
     """
     Convert a DataModel instance to a SQLModel instance.
 
@@ -91,48 +93,70 @@ async def _to_sqlmodel(
         models (Library): A library containing model classes.
 
     Returns:
-        SQLModel: A SQLModel instance representing the data, or the original data if it is a string.
+        SQLModel: A SQLModel instance representing the data, or the original data if it is a primitive.
     """
-    if not isinstance(data, DataModel):
-        return data
-
-    connections = library.get_object_connections(type(data).__name__)
+    type_name = type(data).__name__
+    connections = _connection_map(type_name, library, connection_cache)
     delayed_attrs: Dict[str, Any] = {}
     primitives: Dict[str, Any] = {}
 
-    tasks: List[asyncio.Task] = []
+    table = models[type_name]
+    pk = get_primary_key(table)
+
+    pk_val = getattr(data, pk, None) if _pk_exists(data, pk) else None
+    memo_key = (type_name, pk_val)
+
+    if pk_val is not None and memo_key in memo:
+        return memo[memo_key]
+
+    if pk_val is not None:
+        existing = session.get(table, pk_val)
+        if existing:
+            memo[memo_key] = existing
+            return existing
 
     for key, value in data:
-        conn = attr_connected_to(key, connections)
+        conn = connections.get(key)
         if conn:
-            tasks.append(
-                _process_connected_attr(
-                    conn=conn,
-                    value=value,
-                    delayed_attrs=delayed_attrs,
-                    library=library,
-                    session=session,
-                    models=models,
-                )  # type: ignore
+            _process_connected_attr(
+                conn=conn,
+                value=value,
+                delayed_attrs=delayed_attrs,
+                library=library,
+                session=session,
+                models=models,
+                connection_cache=connection_cache,
+                memo=memo,
+                created_rows=created_rows,
             )
         else:
-            primitives[key] = value
+            if issubclass(type(value), Enum):
+                # Handle enum values
+                primitives[key] = value.value
+            else:
+                # Handle primitive values (not connected to other models)
+                primitives[key] = value
 
-    await asyncio.gather(*tasks)
-
-    row = models[type(data).__name__](**primitives)
+    row = table(**primitives)
     _set_delayed_attributes(row, delayed_attrs)
 
+    if pk_val is not None:
+        memo[memo_key] = row
+
+    created_rows.append(row)
     return row
 
 
-async def _process_connected_attr(
+def _process_connected_attr(
     conn: CrossConnection,
     value: DataModel | str | float | int | bool,
     delayed_attrs: Dict[str, Any],
     library: Library,
     session: Session,
     models: Library,
+    connection_cache: Dict[str, Dict[str, CrossConnection]],
+    memo: Dict[Tuple[str, Any], SQLModel],
+    created_rows: List[SQLModel],
 ) -> None:
     """
     Process an attribute that is linked to another model and update delayed attributes.
@@ -145,30 +169,54 @@ async def _process_connected_attr(
         session (Session): The active database session.
         models (Library): A library containing model classes.
     """
+    if conn.source_attr is None:
+        return
+
     if conn.is_array:
-        tasks = []
-        delayed_attrs[conn.source_attr] = []  # type: ignore
+        delayed_attrs[conn.source_attr] = []
+
+        if not isinstance(value, list):
+            raise ValueError(f"Value {value} is not a list")
 
         for item in value:
             if isinstance(item, DataModel):
-                tasks.append(_create_or_fetch_object(item, library, session, models))
+                delayed_attrs[conn.source_attr].append(
+                    _create_or_fetch_object(
+                        item,
+                        library,
+                        session,
+                        models,
+                        connection_cache,
+                        memo,
+                        created_rows,
+                    )
+                )  # type: ignore
             else:
                 delayed_attrs[conn.source_attr].append(item)  # type: ignore
-
-        delayed_attrs[conn.source_attr] = await asyncio.gather(*tasks)  # type: ignore
     else:
         if isinstance(value, DataModel):
-            processed_value = await _to_sqlmodel(value, library, session, models)
+            processed_value = _to_sqlmodel(
+                value,
+                library=library,
+                session=session,
+                models=models,
+                connection_cache=connection_cache,
+                memo=memo,
+                created_rows=created_rows,
+            )
             delayed_attrs[conn.source_attr] = processed_value  # type: ignore
         else:
             delayed_attrs[conn.source_attr] = value  # type: ignore
 
 
-async def _create_or_fetch_object(
+def _create_or_fetch_object(
     value: DataModel,
     library: Library,
     session: Session,
     models: Library,
+    connection_cache: Dict[str, Dict[str, CrossConnection]],
+    memo: Dict[Tuple[str, Any], SQLModel],
+    created_rows: List[SQLModel],
 ) -> SQLModel:
     """
     Create or fetch an object from the database.
@@ -182,22 +230,51 @@ async def _create_or_fetch_object(
     pk = get_primary_key(models[type(value).__name__])
 
     if not _pk_exists(value, pk):
-        return await _to_sqlmodel(value, library, session, models)  # type: ignore
+        return _to_sqlmodel(
+            value,
+            library,
+            session,
+            models,
+            connection_cache,
+            memo,
+            created_rows,
+        )  # type: ignore
 
     table = models[type(value).__name__]
+    pk_val = getattr(value, pk, None)
+    memo_key = (type(value).__name__, pk_val)
 
-    for instance in session:
-        if isinstance(instance, table) and getattr(instance, pk) == getattr(value, pk):
-            return instance
+    if pk_val is None:
+        return _to_sqlmodel(
+            value,
+            library,
+            session,
+            models,
+            connection_cache,
+            memo,
+            created_rows,
+        )  # type: ignore
 
-    result = session.get(table, getattr(value, pk))
+    if memo_key in memo:
+        return memo[memo_key]
+
+    result = session.get(table, pk_val)
 
     if result:
+        memo[memo_key] = result
         return result
 
-    row = await _to_sqlmodel(value, library, session, models)  # type: ignore
-    session.add(row)
-    return row
+    row = _to_sqlmodel(
+        value,
+        library,
+        session,
+        models,
+        connection_cache,
+        memo,
+        created_rows,
+    )  # type: ignore
+    memo[memo_key] = row
+    return row  # type: ignore
 
 
 def _set_delayed_attributes(row: Any, delayed_attrs: Dict[str, Any]) -> None:
@@ -212,21 +289,24 @@ def _set_delayed_attributes(row: Any, delayed_attrs: Dict[str, Any]) -> None:
         setattr(row, key, value)
 
 
-def attr_connected_to(attr: str, connections: List[Any]) -> Optional[Any]:
-    """
-    Retrieve the connection for a specified attribute.
+def _connection_map(
+    type_name: str, library: Library, cache: Dict[str, Dict[str, CrossConnection]]
+) -> Dict[str, CrossConnection]:
+    if type_name not in cache:
+        connections = library.get_object_connections(type_name)
+        # Explicitly filter to only outgoing relationships (source_type == type_name)
+        # This prevents processing backlinks during hierarchical traversal
+        # get_object_connections already filters to source_type == type_name, but
+        # this explicit check makes the behavior clear and robust
+        cache[type_name] = {
+            conn.source_attr: conn
+            for conn in connections
+            if conn.source_attr is not None and conn.source_type == type_name
+        }
+    return cache[type_name]
 
-    Args:
-        attr (str): The attribute name to find a connection for.
-        connections (List[Any]): A list of potential connections.
 
-    Returns:
-        Optional[Any]: The connection object if found, otherwise None.
-    """
-    return next((c for c in connections if c.source_attr == attr), None)
-
-
-def get_primary_key(table: Type[SQLBase]) -> str:
+def get_primary_key(table: Type[SQLModel]) -> str:
     """
     Get the primary key of a SQLModel table.
     """
