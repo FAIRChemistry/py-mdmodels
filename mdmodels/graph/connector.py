@@ -19,7 +19,38 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-from .connector import GraphConnector
-from .create import generate_neomodel
+from neomodel import config
 
-__all__ = ["generate_neomodel", "GraphConnector"]
+
+class GraphConnector:
+    """
+    A class to manage Neo4j database connections.
+
+    Attributes:
+        user (str): The username for the Neo4j database.
+        password (str): The password for the Neo4j database.
+        host (str): The host address of the Neo4j database.
+        port (int): The port number on which the Neo4j database is running.
+    """
+
+    def __init__(
+        self,
+        user: str,
+        password: str,
+        host: str,
+        port: int,
+    ):
+        """
+        Initialize the GraphConnector with the given parameters and connect to Neo4j.
+
+        Args:
+            user (str): The username for the Neo4j database.
+            password (str): The password for the Neo4j database.
+            host (str): The host address of the Neo4j database.
+            port (int): The port number on which the Neo4j database is running.
+        """
+        self.user = user
+        self.password = password
+        self.host = host
+        self.port = port
+        config.DATABASE_URL = f"bolt://{user}:{password}@{host}:{port}"
