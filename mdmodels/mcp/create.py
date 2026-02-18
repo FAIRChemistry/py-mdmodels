@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Union
+from typing import Dict, Optional
 
 from fastmcp import FastMCP
 
 from mdmodels.mcp.config import MCPConfig
+from mdmodels.sql.connector import DatabaseConnector
 
 from .sql import create_sql_mcp_tools
-
-if TYPE_CHECKING:
-    from mdmodels.graph.connector import GraphConnector
-    from mdmodels.sql.connector import DatabaseConnector
 
 
 def create_mcp_tools(
     *,
     app: FastMCP,
-    db: Union[DatabaseConnector, GraphConnector],
+    db: DatabaseConnector,
     config: Optional[Dict[str, MCPConfig]] = None,
 ) -> None:
     """Create and register MCP tools for database operations.
@@ -83,9 +80,12 @@ def create_mcp_tools(
         create_mcp_tools(app=app, db=db, model_descriptions=descriptions)
         ```
     """
+
     config = config or {}
 
     if isinstance(db, DatabaseConnector):
         create_sql_mcp_tools(app=app, db=db, config=config)
-    elif isinstance(db, GraphConnector):
-        raise NotImplementedError("Graph connectors are not supported yet")
+    else:
+        raise ValueError(
+            f"{type(db)} is not supported yet. Please use 'DatabaseConnector' instead."
+        )
