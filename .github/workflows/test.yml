@@ -3,14 +3,14 @@ name: Library Tests
 on:
   push:
     paths:
-      - 'mdmodels/**'
-      - 'tests/**'
-      - 'pyproject.toml'
+      - "mdmodels/**"
+      - "tests/**"
+      - "pyproject.toml"
   pull_request:
     paths:
-      - 'mdmodels/**'
-      - 'tests/**'
-      - 'pyproject.toml'
+      - "mdmodels/**"
+      - "tests/**"
+      - "pyproject.toml"
 
 jobs:
   build:
@@ -18,10 +18,10 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - name: 'Checkout'
-        uses: 'actions/checkout@v4'
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -31,11 +31,13 @@ jobs:
           curl http://localhost:11434/api/pull -d '{
             "model": "gemma2:2b"
           }'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install poetry
-          poetry install --with dev,sql,graph
+          uv sync --all-extras --group dev --python ${{ matrix.python-version }}
       - name: Wait for Neo4j service to be ready
         run: |
           until curl -s http://localhost:7474; do
@@ -48,10 +50,10 @@ jobs:
           NEO4J_PASSWORD: your_password
           NEO4J_HOST: localhost
           NEO4J_PORT: 7687
-          OLLAMA_HOST: 'http://localhost:11434/v1'
-          OLLAMA_MODEL: 'gemma2:2b'
+          OLLAMA_HOST: "http://localhost:11434/v1"
+          OLLAMA_MODEL: "gemma2:2b"
         run: |
-          python3 -m poetry run pytest
+          uv run pytest -v
 
     services:
       neo4j:

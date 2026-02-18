@@ -124,7 +124,7 @@ class BaseUnit(DataModel):
         Returns:
             Unit: The astropy unit representation of the base unit.
         """
-        return Unit(self.name)
+        return Unit(self.name)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class UnitType(Enum):

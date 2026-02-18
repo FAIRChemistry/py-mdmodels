@@ -19,47 +19,53 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-
-
 import sys
 import warnings
-from pathlib import Path
 
 import neomodel as nm
-from mdmodels_core import DataModel
 
-from .basenode import BaseNode
 from ..create import TYPE_MAPPING
+from ..datamodel import DataModel as DataModelType
+from ..library import Library
+from .basenode import BaseNode
 
 
 def generate_neomodel(
     *,
-    path: Path | str | None = None,
-    content: str | None = None,
-) -> dict[str, type[BaseNode]]:
+    data_model: Library[DataModelType],
+) -> Library[BaseNode]:
     """
     Create neomodel classes dynamically from a schema.
 
+    This function takes a data model library and generates corresponding neomodel
+    classes that can be used for graph database operations with Neo4j. Each object
+    in the data model is converted to a BaseNode subclass with appropriate
+    properties and relationships.
+
     Args:
-        path (Path | str | None): Path to the markdown file.
-        content (str | None): The content of the markdown file.
+        data_model (Library[DataModel]): The library containing the data model
+            with objects to be converted to neomodel classes.
 
     Returns:
-        dict: A dictionary where keys are class names and values are dynamically created neomodel classes.
+        Library[BaseNode]: A library containing BaseNode classes that correspond
+            to the objects in the input data model.
+
+    Raises:
+        AssertionError: If the data model does not have a rust model provided.
+
+    Example:
+        >>> from mdmodels import DataModel, graph
+        >>> model = DataModel.from_markdown("model.md")
+        >>> graph_models = graph.generate_neomodel(data_model=model)
+        >>> # Use the generated graph models for Neo4j operations
     """
-
-    assert path or content, "Either path or content must be provided."
-
-    if content:
-        model = DataModel.from_markdown_string(content).model
-    elif path:
-        model = DataModel.from_markdown(str(path)).model
-    else:
-        raise ValueError("Either path or content must be provided.")
+    assert data_model._rust_model, "Rust model not provided."
+    model = data_model._rust_model.model  # type: ignore
 
     global enums
 
-    classes = {}
+    library = Library(rust_model=data_model._rust_model)
+    library._cross_connections = data_model._cross_connections
     enums = [enum.name for enum in model.enums]
 
     for obj in model.objects:
@@ -72,23 +78,35 @@ def generate_neomodel(
 
         # Dynamically create the class using type()
         new_class = type(obj.name, (BaseNode,), class_body)
-        classes[obj.name] = new_class
+        library[obj.name] = new_class
 
         # Add to sys modules
         sys.modules[__name__].__dict__[obj.name] = new_class
 
-    return classes
+    return library
 
 
 def _create_attributes(obj_attributes):
     """
     Create a dictionary of attributes for a neomodel class based on schema attributes.
 
+    This function processes object attributes from the schema and converts them
+    to appropriate neomodel property types. It handles various data types including
+    strings, numbers, identifiers, and arrays.
+
     Args:
-        schema_attributes (list): A list of dictionaries, each representing an attribute with its properties.
+        obj_attributes (list): A list of attribute objects from the schema,
+            each containing name, dtypes, required status, and array information.
 
     Returns:
-        dict: A dictionary where keys are attribute names and values are neomodel properties.
+        dict: A dictionary where keys are attribute names and values are neomodel
+            property instances (StringProperty, IntegerProperty, etc.).
+
+    Note:
+        - The 'id' attribute is renamed to 'id_' to avoid conflicts with neomodel's
+          built-in id handling.
+        - Complex data types that cannot be mapped are skipped.
+        - Array attributes are wrapped in ArrayProperty.
     """
     attributes = {}
     for attr in obj_attributes:
@@ -116,6 +134,26 @@ def _create_attributes(obj_attributes):
 
 
 def _get_dtype(dtype):
+    """
+    Map schema data types to neomodel property types.
+
+    This function converts string representations of data types from the schema
+    to the corresponding neomodel property class.
+
+    Args:
+        dtype (str): The data type string from the schema (e.g., "string",
+            "integer", "float", "Identifier").
+
+    Returns:
+        type or None: The corresponding neomodel property class, or None if
+            the data type cannot be mapped.
+
+    Supported mappings:
+        - "Identifier" -> UniqueIdProperty
+        - "string" or enum types -> StringProperty
+        - "float", "number" -> FloatProperty
+        - "integer" -> IntegerProperty
+    """
     if dtype == "Identifier":
         return nm.UniqueIdProperty
     elif dtype == "string" or dtype in enums:
@@ -130,13 +168,26 @@ def _get_dtype(dtype):
 
 def _create_relationships(schema_attributes):
     """
-    Create a dictionary of relationship.py for a neomodel class based on schema attributes.
+    Create a dictionary of relationships for a neomodel class based on schema attributes.
+
+    This function processes schema attributes to identify relationships between
+    objects and creates appropriate neomodel relationship definitions. Only
+    array attributes that reference other objects (not primitive types) are
+    converted to relationships.
 
     Args:
-        schema_attributes (list): A list of dictionaries, each representing an attribute with its properties.
+        schema_attributes (list): A list of attribute objects from the schema,
+            each containing name, dtypes, array status, and relationship terms.
 
     Returns:
-        dict: A dictionary where keys are relationship names and values are neomodel relationship.py.
+        dict: A dictionary where keys are relationship names and values are
+            neomodel RelationshipTo instances.
+
+    Note:
+        - Only array attributes are considered for relationships.
+        - Attributes with data types that exist in TYPE_MAPPING (primitive types)
+          are skipped.
+        - The relationship type defaults to "HAS" if no specific term is provided.
     """
     relationships = {}
     for attr in schema_attributes:

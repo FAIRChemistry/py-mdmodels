@@ -19,27 +19,7 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-from neomodel import config
+from .connector import GraphConnector
+from .create import generate_neomodel
 
-from .create import generate_neomodel  # noqa: F401
-
-
-def connect_to_neo4j(
-    user: str,
-    password: str,
-    host: str,
-    port: int,
-):
-    """
-    Connect to a Neo4j database using the provided credentials and host information.
-
-    Args:
-        user (str): The username for the Neo4j database.
-        password (str): The password for the Neo4j database.
-        host (str): The host address of the Neo4j database.
-        port (int): The port number on which the Neo4j database is running.
-
-    Returns:
-        None
-    """
-    config.DATABASE_URL = f"bolt://{user}:{password}@{host}:{port}"
+__all__ = ["generate_neomodel", "GraphConnector"]

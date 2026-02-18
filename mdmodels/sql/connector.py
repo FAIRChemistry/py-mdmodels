@@ -20,12 +20,34 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
-from enum import Enum
-from typing import Optional, Dict
+from __future__ import annotations
 
-from pydantic import BaseModel, model_validator
+import os
+from enum import Enum
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional, Union, cast, overload
+
+import dotenv
+from sqlalchemy import Engine, event
 from sqlalchemy.engine.url import URL
-from sqlmodel import create_engine, SQLModel, Session
+from sqlmodel import Session, SQLModel, create_engine, text
+
+from mdmodels.config import AppConfig
+from mdmodels.sql.base import SQLBase, SQLModelMeta
+from mdmodels.sql.config import TableConfig
+from mdmodels.sql.insert import insert_nested
+
+if TYPE_CHECKING:
+    from mdmodels.datamodel import DataModel
+    from mdmodels.library import Library
+
+DatabaseTypeLiteral = Literal[
+    "postgresql",
+    "pgvector",
+    "mysql",
+    "sqlite",
+    "mssql",
+    "oracle",
+]
 
 
 class DatabaseType(Enum):
@@ -41,10 +63,10 @@ class DatabaseType(Enum):
     """
 
     POSTGRESQL = ("postgresql", "psycopg2")
+    PGVECTOR = ("postgresql", "psycopg2")
     MYSQL = ("mysql", "pymysql")
-    SQLITE = ("sqlite", None)
+    SQLITE = ("sqlite", "")
     SQLSERVER = ("mssql", "pyodbc")
-    ORACLE = ("oracle", "cx_oracle")
 
     def __init__(self, db_name: str, default_driver: str):
         """
@@ -57,58 +79,27 @@ class DatabaseType(Enum):
         self.db_name = db_name
         self.default_driver = default_driver
 
-
-class DatabaseConfig(BaseModel):
-    """
-    Configuration model for database connection.
-
-    Attributes:
-        db_type (DatabaseType): The type of the database.
-        host (str): The database host address.
-        port (Optional[int]): The port number for the database.
-        username (Optional[str]): The database username.
-        password (Optional[str]): The database password.
-        driver (Optional[str]): The driver for the database.
-        database (Optional[str]): The name of the database.
-        query (Optional[dict]): Additional query parameters for the connection string.
-    """
-
-    db_type: DatabaseType
-    host: str
-    port: Optional[int] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    driver: Optional[str] = None
-    database: Optional[str] = None
-    query: Optional[dict] = None
-
-    @model_validator(mode="after")
-    def check_database_requirements(self):
+    @classmethod
+    def from_str(
+        cls,
+        db_type: DatabaseTypeLiteral,
+    ) -> "DatabaseType":
         """
-        Validate the database configuration after initialization.
-
-        Raises:
-            ValueError: If required fields are missing for non-SQLite databases.
+        Convert a string to a DatabaseType enum.
         """
-        if self.db_type != DatabaseType.SQLITE:
-            missing_values = []
-
-            if not self.host:
-                missing_values.append("host")
-            if not self.port:
-                missing_values.append("port")
-            if not self.username:
-                missing_values.append("username")
-            if not self.password:
-                missing_values.append("password")
-
-            if missing_values:
-                raise ValueError(f"Missing values: {', '.join(missing_values)}")
-        else:
-            if self.database is None:
-                raise ValueError("Missing value: database")
-
-        return self
+        match db_type:
+            case "postgresql":
+                return cls.POSTGRESQL
+            case "mysql":
+                return cls.MYSQL
+            case "sqlite":
+                return cls.SQLITE
+            case "pgvector":
+                return cls.PGVECTOR
+            case "mssql":
+                return cls.SQLSERVER
+            case _:
+                raise ValueError(f"Invalid database type: {db_type}")
 
 
 class DatabaseConnector:
@@ -122,6 +113,7 @@ class DatabaseConnector:
 
     def __init__(
         self,
+        library: Library[DataModel],
         host: Optional[str] = None,
         port: Optional[int] = None,
         username: Optional[str] = None,
@@ -129,7 +121,11 @@ class DatabaseConnector:
         driver: Optional[str] = None,
         database: Optional[str] = None,
         query: Optional[dict] = None,
-        db_type: DatabaseType = DatabaseType.SQLITE,
+        db_type: Union[
+            DatabaseTypeLiteral,
+            DatabaseType,
+        ] = DatabaseType.SQLITE,
+        table_config: Optional[Dict[str, TableConfig]] = None,
     ):
         """
         Initialize the DatabaseConnector with the given parameters.
@@ -143,8 +139,18 @@ class DatabaseConnector:
             database (Optional[str]): The name of the database.
             query (Optional[dict]): Additional query parameters for the connection string.
             db_type (DatabaseType): The type of the database.
+            table_config (Optional[TableConfig]): The table configuration.
         """
+
+        from ..library import Library
+
+        if isinstance(db_type, str):
+            db_type = DatabaseType.from_str(db_type)
+        else:
+            db_type = db_type
+
         driver_name = db_type.db_name
+
         if driver:
             driver_name += f"+{driver}"
         elif db_type.default_driver:
@@ -161,16 +167,210 @@ class DatabaseConnector:
         }
 
         self._active_session = None
+        self._table_config = table_config
+        self._db_type = db_type
+        self._db_models = cast(
+            Library[SQLBase],
+            library.to_sqlmodel(db_type, table_config),
+        )
+        self._models = library
+        self._pydantic_library = library
         self._create_engine()
 
-    def create_tables(self, models: Dict[str, SQLModel]):
+        if db_type == DatabaseType.PGVECTOR:
+            with self as session:
+                session.exec(
+                    text("CREATE EXTENSION IF NOT EXISTS vector"),  # pyright: ignore[reportCallIssue, reportArgumentType]
+                )
+
+    @property
+    def engine(self) -> Engine:
+        """
+        Return an active SQLAlchemy engine.
+        Initialize it once or recreate it if disposed.
+        """
+        if self._engine is None:
+            # Create the engine if it is not already created
+            return self._create_engine()
+
+        if getattr(self._engine, "pool", None) is None:
+            # Recreate the engine if it was explicitly disposed
+            return self._create_engine()
+
+        # Return the engine if it is already created and not disposed
+        return self._engine
+
+    @property
+    def db_type(self) -> DatabaseType:
+        """
+        Return the database type.
+        """
+        return self._db_type
+
+    @property
+    def db_models(self) -> Library[SQLBase]:
+        """
+        Return the database models.
+        """
+        return self._db_models
+
+    @property
+    def table_config(self) -> Optional[Dict[str, TableConfig]]:
+        """
+        Return the table configuration.
+        """
+        return self._table_config
+
+    @classmethod
+    def from_config(cls, config: AppConfig) -> "DatabaseConnector":
+        """
+        Create a DatabaseConnector from a config.
+        """
+
+        from mdmodels.datamodel import DataModel
+
+        dotenv.load_dotenv()
+
+        library = DataModel.from_markdown(config.model.path)
+        table_config = {
+            name: TableConfig.from_config(config, name)
+            for name in config.sql.tables.keys()
+        }
+
+        db_type = DatabaseType.from_str(
+            cast(DatabaseTypeLiteral, config.sql.type),
+        )
+
+        username = os.getenv("DB_USERNAME")
+        password = os.getenv("DB_PASSWORD")
+        host = os.getenv("DB_HOST", config.sql.host)
+        port = int(os.getenv("DB_PORT", str(config.sql.port)))
+        database = os.getenv("DB_DATABASE", config.sql.database)
+
+        if username is None:
+            raise ValueError("DB_USERNAME environment variable must be set")
+        if password is None:
+            raise ValueError("DB_PASSWORD environment variable must be set")
+        if host is None:
+            raise ValueError("DB_HOST environment variable must be set")
+        if port is None:
+            raise ValueError("DB_PORT environment variable must be set")
+        if database is None:
+            raise ValueError("DB_DATABASE environment variable must be set")
+
+        return cls(
+            library=library,
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            database=database,
+            db_type=db_type,
+            table_config=table_config,
+        )
+
+    def create_tables(self):
         """
         Create all tables in the database.
         """
 
-        assert len(models) > 0, "No models to create"
+        from ..library import Library
 
         SQLModel.metadata.create_all(self._engine)
+
+        return cast(Library[SQLBase], self._db_models)
+
+    def insert_nested(
+        self,
+        data: Union[DataModel, List[DataModel]],
+    ) -> None:
+        """
+        Insert nested DataModel instances into the database.
+
+        This method handles the insertion of complex nested data structures into the database,
+        automatically managing relationships and foreign keys. It requires an active database
+        session to be available through the context manager.
+
+        Args:
+            data (Union[DataModel, List[DataModel]]): A single DataModel instance or a list
+                of DataModel instances to insert into the database. The method will handle
+                nested relationships and ensure proper insertion order.
+
+        Raises:
+            AssertionError: If the pydantic library is not properly initialized.
+            ValueError: If no active database session is found. Use the context manager
+                'with db as session:' to create an active session before calling this method.
+
+        Example:
+            ```python
+            with db as session:
+                db.insert_nested(my_data_model)
+                session.commit()
+            ```
+
+        Note:
+            This method adds the converted SQLModel instances to the active session but does
+            not commit the transaction. You must call session.commit() to persist the changes.
+        """
+
+        assert self._pydantic_library is not None, "Pydantic library is not set"
+
+        if self._active_session is None:
+            raise ValueError(
+                "No active session found. Please use the context manager to create a session. Use 'with db as session:'"
+            )
+
+        to_add = insert_nested(
+            data=data,
+            library=self._pydantic_library,
+            session=self._active_session,
+            models=self._db_models,
+        )
+
+        self._active_session.add_all(to_add)
+
+    @staticmethod
+    def _get_embed_col(target: SQLModel) -> Optional[str]:
+        """Get the embedding column name for a model instance."""
+
+        if isinstance(target, SQLModelMeta):
+            return target._table_config.embed_column  # pyright: ignore[reportAttributeAccessIssue]
+
+        return target._table_config.embed_column  # pyright: ignore[reportAttributeAccessIssue]
+
+    @staticmethod
+    @overload
+    def embedding_tables(
+        models: Library[SQLBase],
+        as_enum: Literal[False] = False,
+    ) -> List[str]: ...
+
+    @staticmethod
+    @overload
+    def embedding_tables(
+        models: Library[SQLBase],
+        as_enum: Literal[True],
+    ) -> Enum: ...
+
+    @staticmethod
+    def embedding_tables(
+        models: Library[SQLBase],
+        as_enum: bool = False,
+    ) -> Union[List[str], Enum]:
+        tables = [
+            name
+            for name, model in models.items()
+            if not name.startswith("_")
+            and DatabaseConnector._get_embed_col(model) is not None
+        ]
+
+        if as_enum:
+            EmbeddingTables = Enum(
+                "EmbeddingTables", {table: table for table in tables}
+            )
+            return EmbeddingTables
+        else:
+            return tables
 
     def _create_engine(self):
         """
@@ -183,7 +383,45 @@ class DatabaseConnector:
             connection_url = URL.create(**self.db_config)
             self._engine = create_engine(connection_url)
 
+        # Register the event listener only once
+        if not hasattr(self, "_embed_listener_registered"):
+            event.listens_for(Session, "before_flush")(self._auto_embed)
+            self._embed_listener_registered = True
+
         return self._engine
+
+    def _auto_embed(self, session, flush_context, instances):
+        """
+        Event listener for before_flush that automatically generates embeddings
+        for model instances that have an embed_column defined.
+
+        Args:
+            session: The SQLAlchemy session.
+            flush_context: The flush context.
+            instances: The instances being flushed.
+        """
+        if self._table_config is None:
+            return
+
+        targets = session.new.union(session.dirty)
+
+        for target in targets:
+            embed_col = DatabaseConnector._get_embed_col(target)
+
+            if embed_col is None:
+                continue
+
+            to_embed = getattr(target, embed_col)
+
+            if to_embed is not None and to_embed != "":
+                table_config = self._table_config[target.__class__.__name__]
+
+                assert table_config.embed_model is not None, (
+                    "Embedding model is not defined for this table"
+                )
+
+                embed = table_config.embed_model.embed(to_embed)
+                setattr(target, "embedding", embed)
 
     def __enter__(self):
         """
@@ -192,7 +430,7 @@ class DatabaseConnector:
         Returns:
             Session: The active database session.
         """
-        self._active_session = Session(self._create_engine())
+        self._active_session = Session(self.engine)
         return self._active_session
 
     def __exit__(self, exc_type, exc_value, traceback):

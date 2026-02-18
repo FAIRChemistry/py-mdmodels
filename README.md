@@ -78,6 +78,13 @@ docker build --build-arg PYTHON_VERSION=3.12 -t mdmodels .
 docker run -v $(pwd):/app mdmodels
 ```
 
+Alternatively, you can use the `run-tests.sh` script to build the Docker image and run the tests:
+
+```bash
+# Build the Docker image and run the tests
+./run-tests.sh --python=3.12
+```
+
 To skip tests that are considered expensive and require additional services (like databases or external APIs), you can run:
 
 ```bash

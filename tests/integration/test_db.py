@@ -25,10 +25,14 @@ class TestDatabase:
         library = DataModel.from_markdown("./tests/fixtures/model_database.md")
 
         # Act
-        db = sql.DatabaseConnector(database="")
-        sql_models = sql.generate_sqlmodel(data_model=library)
-
-        db.create_tables(sql_models)
+        db = sql.DatabaseConnector(
+            library=library,
+            database="",
+            table_config={
+                "Test": sql.TableConfig(primary_key="name"),
+            },
+        )
+        sql_models = db.create_tables()
 
         # Create a full example
         obj = library.Test(

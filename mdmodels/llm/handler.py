@@ -20,118 +20,221 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
-import asyncio
 import os
-from typing import Type
+from typing import IO, Any, List, Literal, Type, TypeVar, Union, overload
 
-import instructor
-from instructor import from_openai
 from openai import OpenAI
+from openai.types.shared_params.reasoning import Reasoning
 from pydantic import BaseModel
 from rich.console import Console
 
 from mdmodels import DataModel
-from mdmodels.llm.fetcher import prepare_query, fetch_response
+
+# Type aliases
+Purpose = Literal["vision", "pdf"]
+File = tuple[IO, Purpose]
+
+# TypeVar with bounds for precise return typing
+T = TypeVar("T", bound=Union[BaseModel, DataModel])
+SingleResponseModel = Union[Type[DataModel], Type[BaseModel]]
+IterableResponseModel = Union[Type[List[DataModel]], Type[List[BaseModel]]]
+OutputModel = Union[DataModel, BaseModel, List[DataModel], List[BaseModel]]
+
+
+@overload
+def query_openai(
+    response_model: Type[T],
+    query: str,
+    *,
+    pre_prompt: str = "",
+    files: list[File] | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    llm_model: str = "gpt-4.1",
+    temperature: float | None = 0.0,
+    reasoning: Literal["low", "medium", "high"] | None = None,
+) -> T: ...
+
+
+@overload
+def query_openai(
+    response_model: Type[List[T]],
+    query: str,
+    *,
+    pre_prompt: str = "",
+    files: list[File] | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    llm_model: str = "gpt-4.1",
+    temperature: float | None = 0.0,
+    reasoning: Literal["low", "medium", "high"] | None = None,
+) -> List[T]: ...
 
 
 def query_openai(
-    response_model: Type[DataModel] | Type[BaseModel],
+    response_model: Type[Any],
     query: str,
+    *,
     pre_prompt: str = "",
+    files: list[File] | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-    llm_model: str = "gpt-4o",
-    refine_query: bool = False,
-    previous_data_response: DataModel | None = None,
-    use_scaffold: bool = True,
-):
+    llm_model: str = "gpt-4.1",
+    temperature: float | None = 0.0,
+    reasoning: Literal["low", "medium", "high"] | None = None,
+) -> Any:
     """
-    Queries the OpenAI API using the specified parameters and returns the response.
+    Query the OpenAI API with structured response parsing.
 
-    This function constructs a query to the OpenAI API, optionally refining the query
-    and using a scaffold if specified. It requires an API key for authentication unless
-    using the 'ollama' model, which requires a base URL.
+    This function sends a query to the OpenAI API and returns a structured response
+    based on the provided response model. It supports file uploads for vision and
+    PDF processing capabilities.
 
     Args:
-        response_model (Type[DataModel] | Type[BaseModel]): The model to use for the response.
-        query (str): The content to parse and send to the API.
-        pre_prompt (str, optional): An optional pre-prompt to include with the query. Defaults to "".
-        base_url (str | None, optional): The base URL for the API. Required for 'ollama' model. Defaults to None.
-        api_key (str | None, optional): The API key for authentication. Required for non-'ollama' models. Defaults to None.
-        llm_model (str, optional): The language model to use. Defaults to "gpt-4o".
-        refine_query (bool, optional): Indicates whether to refine the query before sending. Defaults to False.
-        previous_data_response (DataModel, optional): The previous data response to include in the query. Defaults to None.
-        use_scaffold (bool, optional): Indicates whether to use a scaffold for the query. Defaults to True.
-
+        response_model: The Pydantic model class to use for response parsing.
+        query: The main query content to send to the API.
+        pre_prompt: Optional system prompt to provide context. Defaults to "".
+        files: Optional list of (file, purpose) tuples for file uploads. Defaults to None.
+        base_url: Optional base URL for the API (useful for local models). Defaults to None.
+        api_key: Optional API key for authentication. If None, uses OPENAI_API_KEY env var.
+        llm_model: The language model to use. Defaults to "gpt-4o".
+        temperature: The temperature for the language model. Defaults to 0.0.
     Returns:
-        BaseModel: The response from the OpenAI API.
+        An instance of the response_model with the parsed API response.
+
+    Raises:
+        RuntimeError: If the API request fails or response parsing fails.
+        ValueError: If required authentication is missing.
 
     Example:
+        >>> from pydantic import BaseModel
         >>> from mdmodels.llm.handler import query_openai
+        >>>
+        >>> class CityInfo(BaseModel):
+        ...     name: str
+        ...     country: str
+        ...     population: int
+        >>>
         >>> response = query_openai(
-        ...     response_model=dataset,
-        ...     query="What is the capital of France?",
+        ...     response_model=CityInfo,
+        ...     query="What is the capital of France and its population?",
         ...     api_key="your_api_key"
         ... )
-        >>> print(response)
-        DataModel(field1="Paris", field2="France")
+        >>> print(f"{response.name}, {response.country}: {response.population}")
+        Paris, France: 2161000
     """
+    if files is None:
+        files = []
 
-    client = create_oai_client(api_key=api_key, base_url=base_url)
+    client = _create_openai_client(api_key=api_key, base_url=base_url)
     console = Console()
 
-    if use_scaffold:
-        wrapped_response_model = prepare_query(response_model)
-    else:
-        wrapped_response_model = response_model
+    with console.status("Processing query...", spinner="dots") as status:
+        status.update("Building request...")
+        messages = _build_messages(query, pre_prompt, files, client)
 
-    with console.status("Processing...", spinner="dots") as status:
         status.update("Fetching response...")
-        response = asyncio.run(
-            fetch_response(
-                client=client,
-                response_model=wrapped_response_model,
-                query=query,
-                pre_prompt=pre_prompt,
-                llm_model=llm_model,
-                refine_query=refine_query,
-                previous_response=(
-                    previous_data_response.model_dump_json()
-                    if previous_data_response
-                    else ""
-                ),
+        try:
+            response = client.responses.parse(
+                model=llm_model,
+                input=messages,  # type: ignore
+                text_format=response_model,
+                temperature=None if reasoning else temperature,
+                reasoning=Reasoning(effort=reasoning) if reasoning else None,
             )
-        )
 
-    return response
+            if response.output_parsed is None:
+                raise RuntimeError("API returned None for parsed response")
+
+            return response.output_parsed
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to get structured response from OpenAI: {e}"
+            ) from e
 
 
-def create_oai_client(
-    api_key: str,
-    base_url: str | None = None,
-):
+def _build_messages(
+    query: str, pre_prompt: str, files: list[File], client: OpenAI
+) -> list[dict]:
+    """Build the message list for the OpenAI API request."""
+    messages = []
+
+    if pre_prompt:
+        messages.append({"role": "system", "content": pre_prompt})
+
+    file_content = []
+    for file, purpose in files:
+        file_dict = _upload_file(client, file, purpose)
+        file_content.append(file_dict)
+
+    if file_content:
+        messages.append({"role": "user", "content": file_content})
+
+    messages.append({"role": "user", "content": query})
+    return messages
+
+
+def _upload_file(client: OpenAI, file: IO, purpose: Purpose) -> dict:
     """
-    Create an OpenAI client.
+    Upload a file to the OpenAI API for processing.
 
     Args:
-        api_key (str): The API key for authentication.
-        base_url (str | None, optional): The base URL for the API. Defaults to None.
+        client: The OpenAI client instance.
+        file: The file object to upload.
+        purpose: The intended use of the file ("vision" for images, "pdf" for documents).
 
     Returns:
-        Instructor: The created OpenAI client.
+        A dictionary containing the file type and file ID for API consumption.
+
+    Raises:
+        RuntimeError: If the file upload fails.
+        ValueError: If an invalid purpose is provided.
     """
+    purpose_to_type = {
+        "vision": "input_image",
+        "pdf": "input_file",
+    }
 
-    assert api_key is not None or os.environ.get("OPENAI_API_KEY"), (
-        "API key is required for non-ollama models. "
-        "Either provide it or set it as an environment variable 'OPENAI_API_KEY'"
-    )
+    if purpose not in purpose_to_type:
+        raise ValueError(
+            f"Invalid purpose: {purpose}. Must be one of: {list(purpose_to_type.keys())}"
+        )
 
-    if base_url:
-        mode = instructor.Mode.JSON
-    else:
-        mode = instructor.Mode.TOOLS_STRICT
+    try:
+        file_obj = client.files.create(file=file, purpose="user_data")
+        return {
+            "type": purpose_to_type[purpose],
+            "file_id": file_obj.id,
+        }
+    except Exception as e:
+        raise RuntimeError(f"Failed to upload file to OpenAI: {e}") from e
 
-    return from_openai(
-        OpenAI(api_key=api_key, base_url=base_url),
-        mode=mode,
-    )
+
+def _create_openai_client(
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> OpenAI:
+    """
+    Create and configure an OpenAI client.
+
+    Args:
+        api_key: Optional API key for authentication. If None, uses OPENAI_API_KEY env var.
+        base_url: Optional base URL for the API (useful for local models).
+
+    Returns:
+        A configured OpenAI client instance.
+
+    Raises:
+        ValueError: If no API key is provided or found in environment variables.
+    """
+    if api_key is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+
+    if api_key is None:
+        raise ValueError(
+            "API key is required. Either provide it as a parameter or set the "
+            "OPENAI_API_KEY environment variable."
+        )
+
+    return OpenAI(api_key=api_key, base_url=base_url)

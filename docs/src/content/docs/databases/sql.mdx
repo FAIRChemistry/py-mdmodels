@@ -1,0 +1,360 @@
+---
+title: SQL Integration
+description: Learn how to turn your data model into a SQL database with SQLModel.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models provides an SQL integration that transforms your markdown-defined data models into fully functional SQL databases. Using SQLModel (which extends SQLAlchemy), MD-Models automatically generates database tables, handles relationships between objects, and provides convenient methods for inserting nested data structures.
+
+The SQL integration bridges the gap between your hierarchical markdown data models and relational database storage. It handles the complexity of converting nested objects into normalized database tables while maintaining referential integrity and supporting efficient queries.
+
+## Getting Started
+
+<Steps>
+
+1. **Load Your Data Model**
+
+   ```python
+   from mdmodels import DataModel
+   
+   # Load your markdown data model
+   dm = DataModel.from_markdown("model.md")
+   ```
+
+   This gives you a Library containing Pydantic models for your data structures.
+
+2. **Connect to Database**
+
+   ```python
+   from mdmodels.sql import DatabaseConnector
+   
+   # For SQLite (file-based)
+   db = DatabaseConnector(library=dm, database="my_database.db")
+   
+   # For PostgreSQL
+   db = DatabaseConnector(
+       library=dm,
+       database="my_database",
+       host="localhost",
+       port=5432,
+       username="postgres",
+       password="password",
+       db_type="postgresql"
+   )
+   ```
+
+   The `DatabaseConnector` requires a `library` parameter (your data model) and automatically generates SQLModel classes internally. It creates a SQLAlchemy engine that manages your database connection, handling connection pooling and transaction management automatically.
+
+3. **Create Database Tables**
+
+   ```python
+   # Create all tables defined in your models
+   # Returns the generated SQLModel classes
+   models = db.create_tables()
+   ```
+
+   The `create_tables()` method automatically generates SQLModel classes from your library and creates the database schema. It returns the generated SQLModel classes, which include:
+   - **SQLModel classes** for each object type in your model
+   - **Foreign key relationships** based on references in your markdown
+   - **Linking tables** for many-to-many relationships
+   - **Primary keys**: If not specified, an integer `id` column is automatically added as the primary key. You can customize primary keys using [table configuration](#table-configuration).
+
+   This creates the database schema including primary keys, foreign key constraints, indexes, and linking tables, all automatically based on your markdown definitions.
+
+</Steps>
+
+## Working with Database Sessions
+
+SQLModel uses sessions to manage database transactions. Sessions are context managers that automatically handle committing and rolling back transactions:
+
+```python
+with db as session:
+    # Your database operations here
+    # The session is automatically committed when exiting
+    # If an exception occurs, the transaction is rolled back
+```
+
+This pattern ensures data consistency. Either all your changes are saved together, or none of them are if something goes wrong.
+
+## Creating and Inserting Rows
+
+Creating rows in the database works just like creating regular Python objects:
+
+```python
+with db as session:
+    # Create a molecule row
+    molecule = models.Molecule(name="glucose", formula="C6H12O6", molecular_weight=180.16, cas_number="50-99-7")
+    
+    # Add it to the session
+    session.add(molecule)
+    # The session commits automatically when exiting the context
+```
+
+Each SQLModel class has the same attributes you defined in your markdown file, so creating database rows feels natural and familiar.
+
+## Querying the Database
+
+SQLModel provides a powerful query API based on SQLAlchemy. You can query your database using familiar Python syntax:
+
+```python
+from mdmodels.sql import select
+
+with db as session:
+    # Select all molecules
+    statement = select(models.Molecule)
+    molecules = session.exec(statement).all()
+    
+    # Select with a filter
+    statement = select(models.Molecule).where(models.Molecule.name == "glucose")
+    molecule = session.exec(statement).first()
+    
+    # Select multiple related objects
+    statement = select(models.Experiment, models.Molecule)
+    results = session.exec(statement).all()
+```
+
+The `select()` function creates query statements that you execute using `session.exec()`. You can chain `.where()` clauses, use `.join()` for relationships, and apply various filtering operations.
+
+## Updating and Deleting Rows
+
+Updating rows is straightforward, simply modify the object and add it back to the session:
+
+```python
+with db as session:
+    # Find the row you want to update
+    statement = select(models.Molecule).where(models.Molecule.name == "glucose")
+    molecule = session.exec(statement).first()
+    
+    # Modify it
+    molecule.molecular_weight = 180.16
+    
+    # Add it back to the session
+    session.add(molecule)
+    session.commit()
+```
+
+Deleting rows is equally simple:
+
+```python
+with db as session:
+    # Find the row you want to delete
+    statement = select(models.Molecule).where(models.Molecule.name == "glucose")
+    molecule = session.exec(statement).first()
+    
+    # Delete it
+    session.delete(molecule)
+    session.commit()
+```
+
+## Inserting Nested Objects
+
+One of the most useful features of MD-Models SQL integration is the ability to insert complex nested data structures. The `DatabaseConnector.insert_nested()` method handles the complexity of converting hierarchical objects into normalized database rows:
+
+```python
+# Load your data from JSON or create it programmatically
+with open("experiments.json", "r") as f:
+    datasets = [dm.Experiment(**dataset) for dataset in json.load(f)]
+
+with db as session:
+    # Insert nested objects - handles all relationships automatically
+    db.insert_nested(datasets)
+```
+
+The `DatabaseConnector.insert_nested()` method:
+- Recursively processes nested objects
+- Creates database rows for each object in the hierarchy
+- Handles foreign key relationships automatically
+- Prevents duplicate rows by reusing existing objects
+- Works asynchronously to handle complex structures efficiently
+
+This makes it easy to insert entire experiment hierarchies with molecules, proteins, kinetic parameters, and all their relationships in a single operation.
+
+## Restoring Nested Objects
+
+After querying data from the database, you often want to restore it back into your original data model format. SQLModel rows have a `to_dict()` method that converts them back into dictionaries:
+
+```python
+with db as session:
+    # Query an experiment from the database
+    statement = select(models.Experiment)
+    experiment_row = session.exec(statement).first()
+    
+    # Convert to dictionary (handles nested relationships)
+    experiment_dict = experiment_row.to_dict()
+    
+    # Restore as your original data model object
+    experiment = dm.Experiment(**experiment_dict)
+```
+
+The `to_dict()` method recursively follows relationships and reconstructs the nested structure, so you get back the same hierarchical object structure you started with.
+
+## Relationship Direction
+
+MD-Models follows a hierarchical data model structure where relationships are defined from parent to child. This design choice ensures clarity, prevents circular dependencies, and aligns with how data exchange formats typically work.
+
+### Forward-Only Relationships
+
+In your markdown model, relationships are defined in one direction only—from parent to child. For example:
+
+```markdown
+### Experiment
+- **name**: string
+- **molecules**: Molecule[]
+- **proteins**: Protein[]
+- **kinetic_parameters**: KineticParameters[]
+
+### Molecule
+- **name**: string
+- formula: string
+- molecular_weight: number
+```
+
+Here, `Experiment` has relationships to `Molecule`, `Protein`, and `KineticParameters`, but `Molecule` does not define a relationship back to `Experiment` in the schema. This forward-only approach:
+
+- **Prevents circular dependencies** that can cause recursion errors
+- **Maintains clear ownership** of relationships (the parent owns the relationship)
+- **Matches data exchange patterns** where hierarchical structures flow downward
+- **Keeps serialization predictable** by following the defined structure
+
+When you serialize objects using `to_dict()`, it follows relationships in the "down" direction (parent to child) by default, matching your markdown model structure. This prevents circular references and ensures clean serialization of hierarchical data.
+
+### Navigating Reverse Relationships
+
+While reverse relationships aren't defined in your markdown schema, you can still navigate "up" the hierarchy programmatically using `apply_join_chain()`. This is useful when you need to find parent objects from a child:
+
+```python
+from mdmodels.sql import select
+
+with db as session:
+    # Find all molecules used in a specific experiment
+    # The join chain from Experiment to Molecule is computed automatically
+    # This follows the hierarchical structure: Experiment.molecules -> Molecule[]
+    statement = select(models.Molecule)
+    statement = models.apply_join_chain(
+        statement,
+        source="Experiment",
+        target="Molecule",
+    ).where(models.Experiment.name == "Hexokinase kinetic characterization")
+    
+    molecules = session.exec(statement).all()
+    
+    # Find kinetic parameters measured in experiments studying kinases
+    # This follows the hierarchical structure: Experiment.kinetic_parameters -> KineticParameters[]
+    statement = select(models.KineticParameters)
+    statement = models.apply_join_chain(
+        statement,
+        source="Experiment",
+        target="KineticParameters",
+    ).where(models.Experiment.name.like("%kinase%"))
+    
+    kinetic_data = session.exec(statement).all()
+    
+    # Find proteins studied in experiments with low Km values
+    # This demonstrates joining through multiple relationships
+    statement = select(models.Protein)
+    statement = models.apply_join_chain(
+        statement,
+        source="Experiment",
+        target="Protein",
+    ).join(models.KineticParameters).where(models.KineticParameters.km < 0.1)
+    
+    proteins = session.exec(statement).all()
+```
+
+The `apply_join_chain()` method automatically finds the join path between source and target types and applies it to your SQL statement. Simply specify the source and target model types, and the method handles computing the join chain and applying it. This gives you the flexibility to query in any direction while keeping your schema definition clean and hierarchical. You can also use `find_join_chain()` directly if you need more control over the join process.
+
+## Advanced Queries with Joins
+
+For complex queries that span multiple tables, you can use SQL joins:
+
+```python
+with db as session:
+    # Find all experiments that use a specific molecule
+    statement = (
+        select(models.Experiment, models.Molecule)
+        .join(models.Experiment.molecules)
+        .where(models.Molecule.name == "glucose")
+    )
+    
+    rows = session.exec(statement).all()
+    
+    for experiment, molecule in rows:
+        print(f"{molecule.name} is used in {experiment.name}")
+    
+    # Find experiments with kinetic parameters for a specific protein
+    statement = (
+        select(models.Experiment, models.Protein, models.KineticParameters)
+        .join(models.Experiment.proteins)
+        .join(models.Experiment.kinetic_parameters)
+        .where(models.Protein.name == "hexokinase")
+        .where(models.KineticParameters.km < 0.1)
+    )
+    
+    rows = session.exec(statement).all()
+    
+    for experiment, protein, params in rows:
+        print(f"{experiment.name} studied {protein.name} with Km={params.km}")
+```
+
+Joins let you query across relationships efficiently, finding objects based on their connections to other objects in your data model.
+
+
+## Table Configuration
+
+You can customize the behavior of individual tables by providing a `table_config` parameter to `DatabaseConnector`. This allows you to configure embeddings, indexing, deduplication, conflict resolution, and mutability policies on a per-table basis.
+
+```python
+from mdmodels.sql import DatabaseConnector, TableConfig
+
+db = DatabaseConnector(
+    table_config={
+        "Experiment": TableConfig(
+            primary_key="experiment_id",
+            embed_column="description",
+            embed_model=embedding_model,
+            indexed_columns=["name"],
+            deduplicate_on=["date"],
+            conflict_policy="upsert",
+        ),
+    },
+    **db_params,
+)
+```
+
+The `table_config` parameter accepts a dictionary mapping model names (as strings) to `TableConfig` instances. Each `TableConfig` supports the following properties:
+
+- **`primary_key`** specifies a custom name for the primary key column. If not provided, an integer `id` column will be automatically added as the primary key. Use this to override the default behavior when you want to use a different column name or when your model defines a primary key field that should be used instead of the auto-generated `id`.
+
+- **`embed_column`** specifies which column should be used to generate vector embeddings for similarity search. Must be provided together with `embed_model`, or both must be `None`. When configured, MD-Models automatically generates a vector column and creates embeddings for the specified column, enabling semantic search capabilities.
+
+- **`embed_model`** provides the embedding model implementation for generating vector embeddings. Must be provided together with `embed_column`, or both must be `None`. Common implementations include `OpenAITextEmbedding` for text embeddings or custom models for domain-specific embeddings (e.g., protein sequences).
+
+- **`indexed_columns`** is a list of column names to create database indexes on. Indexes improve query performance for frequently filtered or sorted columns. Each column name should be non-empty and unique within the list. Useful for columns that are frequently used in WHERE clauses or JOIN conditions.
+
+- **`deduplicate_on`** is a list of column names used to identify duplicate records. When inserting data, records with matching values in all specified columns are considered duplicates. This is used in conjunction with `conflict_policy` to determine how duplicates are handled. Note: The primary key column cannot be included in `deduplicate_on` as it would be redundant.
+
+- **`conflict_policy`** defines how to handle conflicts when inserting duplicate records (as identified by `deduplicate_on`). Options:
+  - **`"error"`** (default): Raise an error when a duplicate is detected
+  - **`"upsert"`**: Update existing records with new values when duplicates are found
+  - **`"ignore"`**: Silently skip duplicate records without inserting or updating
+  
+  **Important**: The `"upsert"` policy requires `deduplicate_on` to be set, as it needs to know which columns to use for identifying duplicates.
+
+- **`mutability_policy`** controls whether records can be modified after insertion. Options:
+  - **`"mutable"`** (default): Records can be updated and deleted normally
+  - **`"append_only"`**: Records cannot be modified once inserted, only new records can be added (useful for audit logs or immutable data)
+  
+  **Important**: Tables with mutability policy set to `append_only` cannot use conflict policy set to `upsert` as this would contradict the immutability constraint.
+
+## Database Types
+
+MD-Models supports multiple database backends:
+
+- **SQLite**: Perfect for development and testing, requires no server setup
+- **PostgreSQL**: Production-ready, supports advanced features like JSON columns
+- **MySQL**: Widely used, good for web applications
+- **SQL Server**: Enterprise database support
+- **Oracle**: Enterprise database support
+
+Each database type has its own optimizations and features. SQLite is great for getting started, while PostgreSQL offers the most advanced features for production use.

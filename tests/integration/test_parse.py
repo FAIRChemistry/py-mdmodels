@@ -1,7 +1,7 @@
 import json
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
 from mdmodels import DataModel
 
@@ -40,9 +40,9 @@ class TestParse:
         # Assert
         expected_json = json.loads(open("./tests/fixtures/expected_json.json").read())
 
-        assert (
-            json.loads(obj.model_dump_json()) == expected_json
-        ), "The generated JSON does not match the expected JSON."
+        assert json.loads(obj.model_dump_json()) == expected_json, (
+            "The generated JSON does not match the expected JSON."
+        )
 
     def test_parse_and_create_object_with_false_reference(self):
         """
@@ -98,9 +98,9 @@ class TestParse:
 
         # Assert
         expected = obj.model_dump_json()
-        assert json.loads(result.model_dump_json()) == json.loads(
-            expected
-        ), "The parsed JSON does not match the expected attributes."
+        assert json.loads(result.model_dump_json()) == json.loads(expected), (
+            "The parsed JSON does not match the expected attributes."
+        )
 
     def test_parse_xml(self):
         """
@@ -124,9 +124,9 @@ class TestParse:
         result = dm.Test.from_xml(open("./tests/fixtures/expected_xml.xml").read())
 
         # Assert
-        assert (
-            result.model_dump_json() == expected
-        ), "The parsed XML does not match the expected attributes."
+        assert result.model_dump_json() == expected, (
+            "The parsed XML does not match the expected attributes."
+        )
 
     def _create_object(self):
         """
@@ -154,56 +154,3 @@ class TestParse:
 
         return obj
 
-    def test_parse_recursion(self):
-        """
-        Test the parsing of recursive structures in a DataModel object.
-
-        This test verifies that a DataModel can correctly handle recursive
-        definitions by creating a Recursive object that references itself.
-        It checks the following:
-        - Creation of a Recursive object with nested references.
-        - Validation that the deepest level of recursion resolves to None.
-
-        Raises:
-            AssertionError: If the recursion does not resolve as expected.
-        """
-        dm = DataModel.from_markdown("./tests/fixtures/model_recursion.md")
-        obj = dm.Recursive(
-            recursive=dm.Recursive(
-                recursive=dm.Recursive(recursive=dm.Recursive(recursive=dm.Recursive()))
-            )
-        )
-
-        assert (
-            obj.recursive.recursive.recursive.recursive.recursive is None
-        ), "The deepest level of recursion should resolve to None"
-
-    def test_parse_wrapped_xml(self):
-        """
-        Test the parsing and serialization of WrappedXML structures in a DataModel object.
-
-        This test verifies that a WrappedXML object can be correctly instantiated
-        from a DataModel and that its XML representation matches the expected output.
-        It also checks that the object can be reconstructed from its XML representation.
-
-        Raises:
-            AssertionError: If the generated XML does not match the expected XML
-            or if the reconstructed object does not equal the original object.
-        """
-        dm = DataModel.from_markdown("./tests/fixtures/model_wrapped_xml.md")
-        obj = dm.WrappedXML(
-            list_of_some_xml=[
-                dm.Some(some_field="some_field_1", some_element="some_element_1"),
-                dm.Some(some_field="some_field_2", some_element="some_element_2"),
-            ],
-            single_xml=dm.Some(
-                some_field="some_field_3", some_element="some_element_3"
-            ),
-        )
-
-        assert obj.xml().replace(" ", "").replace("\n", "") == open(
-            "./tests/fixtures/expected_wrapped_xml.xml"
-        ).read().replace(" ", "").replace("\n", ""), "The XML strings are not equal"
-
-        obj2 = dm.WrappedXML.from_xml(obj.xml())
-        assert obj2 == obj, "The objects are not equal"

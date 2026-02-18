@@ -1,0 +1,120 @@
+---
+title: Understanding the Library Object
+description: Learn what the Library is and how to explore the classes generated from your markdown.
+---
+
+After parsing your markdown file, MD-Models returns a `Library` object. This Library is the bridge between your markdown definitions and the Python classes you'll use to create data. Understanding what the Library contains and how to explore it is crucial to working effectively with MD-Models.
+
+## What is a `Library`?
+
+Think of the Library as a container that holds all the Python classes that were generated from your markdown file. When MD-Models parses your markdown, it identifies each object type you've defined (like `ChemicalProject`, `Molecule`, or `Experiment`) and creates a corresponding Python class for each one. These classes are stored in the Library and can be accessed using simple dot notation.
+
+The Library isn't just a passive container, it also provides methods to explore your data model, check relationships between objects, and convert your model to other formats. But at its core, the Library is your gateway to the classes that represent your data structures.
+
+## How Objects Become Classes
+
+Each object type defined in your markdown file becomes a class in the Library with the exact same name. For example, if your markdown file defines objects called `ChemicalProject`, `Molecule`, and `Experiment`, your Library will contain classes with those exact names. The attributes you define in markdown (like `name`, `formula`, `id`) become attributes of these classes, and the types you specify (like `string`, `number`, `array`) determine how those attributes are validated.
+
+## Exploring Your `Library`
+
+Before you start creating data, it's helpful to explore what's available in your Library. The simplest way is to print the Library object, which shows you all the object types that were defined:
+
+```python
+print(library)
+# Output:
+# ChemicalProject
+# Molecule
+# Experiment
+```
+
+For more detailed information, use the `info()` method. This displays a comprehensive overview of all objects and their attributes:
+
+```python
+# See information about all objects
+library.info()
+
+# See information about a specific object
+library.ChemicalProject.info()
+```
+
+The `info()` method displays a nicely formatted table showing each field, its type, whether it's required or optional, and any special methods available for adding data to collections. This is particularly useful when you're working with a data model you haven't seen before, or when you want to quickly check what attributes an object has.
+
+## Accessing Object Classes
+
+Once you have your Library, you can access any object class defined in your markdown file using simple dot notation. These classes are fully functional Python classes that you can instantiate, inspect, and use just like any other class:
+
+```python
+# Access the ChemicalProject class
+ProjectClass = library.ChemicalProject
+
+# Access the Molecule class
+MoleculeClass = library.Molecule
+
+# You can also use them directly without assigning to a variable
+project = library.ChemicalProject(title="My Project")
+```
+
+The classes in your Library are dynamically generated based on your markdown definitions. They include automatic validation, type checking, and special methods for working with collections and nested objects, all based on what you specified in your markdown file.
+
+## Converting to Database Models
+
+The Library provides convenient methods to convert your data model to database-specific formats. These methods are the **default and recommended way** to generate database models from your Library:
+
+### Converting to SQLModel
+
+To convert your Library to SQLModel classes for SQL databases:
+
+```python
+from mdmodels import DataModel
+
+# Load your data model
+model = DataModel.from_markdown("model.md")
+
+# Convert to SQLModel classes
+db_models = model.to_sqlmodel(database_type="postgresql")
+
+# Now you can use the SQLModel classes
+db_models.Molecule  # SQLModel class for Molecule
+db_models.Reaction  # SQLModel class for Reaction
+```
+
+The `to_sqlmodel()` method accepts a `database_type` parameter that can be:
+- `"postgresql"` - PostgreSQL database
+- `"mysql"` - MySQL database
+- `"sqlite"` - SQLite database
+- Or use `sql.DatabaseType` enum values
+
+### Converting to NeoModel
+
+To convert your Library to NeoModel classes for Neo4j graph databases:
+
+```python
+from mdmodels import DataModel
+
+# Load your data model
+model = DataModel.from_markdown("model.md")
+
+# Convert to NeoModel classes
+graph_models = model.to_neomodel()
+
+# Now you can use the NeoModel classes
+graph_models.Molecule  # BaseNode class for Molecule
+graph_models.Reaction  # BaseNode class for Reaction
+```
+
+The `to_neomodel()` method returns a Library containing NeoModel node classes that can be used with Neo4j graph databases.
+
+### Why Use Library Methods?
+
+These methods (`to_sqlmodel()` and `to_neomodel()`) are the recommended approach because they:
+- Work directly with your Library object
+- Maintain consistency with the rest of the MD-Models API
+- Automatically handle type conversions and relationships
+- Are simpler and more intuitive than calling separate functions
+
+While direct functions like `sql.generate_sqlmodel()` and `graph.generate_neomodel()` are still available, using the Library methods is the preferred way to convert your models.
+
+## Next Steps
+
+Now that you understand what the Library contains and how to convert it to database formats, you're ready to start creating actual data objects. Continue to the next guide to learn how to use these classes to create and work with data.
+

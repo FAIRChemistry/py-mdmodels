@@ -1,0 +1,26 @@
+---
+title: Installation
+description: Install MD-Models and get ready to start using it.
+---
+
+## Installing MD-Models
+
+Before you can start using MD-Models, you need to install it. The simplest way is using pip:
+
+```bash
+pip install mdmodels
+```
+
+If you're working in a Jupyter notebook or similar environment, you may also want to run this helper function to ensure async operations work correctly:
+
+```python
+import mdmodels
+mdmodels.patch_nest_asyncio()
+```
+
+This is particularly important if you're loading models from remote URLs or GitHub, as these operations use async I/O under the hood.
+
+## Next Steps
+
+Once you have MD-Models installed, you're ready to start parsing your markdown data models. Continue to the next guide to learn how to load your data models from various sources.
+

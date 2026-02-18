@@ -22,11 +22,11 @@
 
 import asyncio
 from pathlib import Path
-from typing import Any, get_origin, Coroutine
+from typing import Any, Coroutine, Optional, get_origin
 from xml.dom import minidom
 
 import jsonpath
-from pydantic import model_validator, ValidationError
+from pydantic import ValidationError, model_validator
 from pydantic_core import InitErrorDetails
 from pydantic_xml import BaseXmlModel
 from rich.console import Console
@@ -48,6 +48,56 @@ class DataModel(
     """
     A class to represent a data model with various utility methods.
     """
+
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+
+    @classmethod
+    def get_embedding_attr(cls) -> Optional[str]:
+        """
+        Get the attribute name for the embedding column.
+
+        This method searches through the model fields to find the attribute
+        that has been marked for embedding (with "embedding": True in its
+        json_schema_extra configuration).
+
+        Returns:
+            Optional[str]: The name of the embedding attribute if found,
+                          None if no embedding attribute is configured.
+
+        Raises:
+            ValueError: If multiple embedding attributes are found, as only
+                       one embedding attribute is allowed per model.
+
+        Example:
+            >>> class MyModel(DataModel):
+            ...     description: str = Field(json_schema_extra={"embedding": True})
+            ...     name: str
+            >>> MyModel.embedding_attr()
+            'description'
+        """
+        embedding_attrs = []
+        for name, field_info in cls.model_fields.items():
+            if (
+                not hasattr(field_info, "json_schema_extra")
+                or field_info.json_schema_extra is None
+            ):
+                continue
+
+            if field_info.json_schema_extra.get("embedding", False):
+                embedding_attrs.append((name, field_info.annotation))
+
+        if len(embedding_attrs) > 1:
+            raise ValueError(f"Multiple embedding attributes found: {embedding_attrs}")
+        elif len(embedding_attrs) == 0:
+            return None
+
+        embed_name, embed_dtype = embedding_attrs[0]
+
+        if embed_dtype is not str:
+            raise ValueError(f"Embedding attribute {embed_name} must be a string")
+
+        return embed_name
 
     def validate(self):  # noqa
         """
@@ -148,7 +198,7 @@ class DataModel(
                 annot = (
                     repr(dtype).replace("pydantic_xml.model.", "").replace("[", r"\[")
                 )
-            elif hasattr(dtype, "__name__"):
+            elif dtype is not None and hasattr(dtype, "__name__"):
                 annot = dtype.__name__
             else:
                 annot = repr(dtype)
@@ -182,7 +232,7 @@ class DataModel(
         cls,
         path: Path | str,
         ignore_attributes: list[str] = [],
-    ) -> Library:
+    ) -> Library["DataModel"]:
         """
         Create a data model from a markdown file.
 
@@ -230,8 +280,9 @@ class DataModel(
         """
         Create a data model from a JSON schema file.
         """
-        from .create import build_module
         from mdmodels_core import DataModel as RSDataModel  # type: ignore
+
+        from .create import build_module
 
         rs_data_model = RSDataModel.from_json_schema(schema)
 
@@ -245,8 +296,9 @@ class DataModel(
         """
         Create a data model from a JSON schema string.
         """
-        from .create import build_module
         from mdmodels_core import DataModel as RSDataModel  # type: ignore
+
+        from .create import build_module
 
         rs_data_model = RSDataModel.from_json_schema_string(schema)
 
@@ -309,7 +361,7 @@ class DataModel(
         """
 
         tasks = [self._query_by_path(path) for path in json_paths]
-        results = asyncio.run(asyncio.gather(*tasks))  # noqa
+        results = asyncio.run(asyncio.gather(*tasks))  # type: ignore
 
         return {path: res for path, res in zip(json_paths, results)}
 
@@ -355,8 +407,8 @@ class DataModel(
         Returns:
             list[str]: A list of JSON paths for the data model.
         """
-        assert cls.__mdmodels__.path_factory, "Path factory not found for data model"
+        assert cls.__mdmodels__.path_factory, "Path factory not found for data model"  # type: ignore
 
-        path_factory = cls.__mdmodels__.path_factory
+        path_factory = cls.__mdmodels__.path_factory  # type: ignore
 
         return path_factory.get_all_paths(cls.__name__, leafs=leafs)

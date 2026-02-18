@@ -19,10 +19,16 @@
 #   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
-from typing import List
+from typing import Optional, Type
+
+from sqlalchemy import func
+from sqlmodel import select
 
 from mdmodels.create import TYPE_MAPPING
 from mdmodels.library import Library
+from mdmodels.relations import apply_join_chain
+from mdmodels.sql.base import SQLBase
+from mdmodels.sql.insert import get_primary_key
 
 PK_KEYS = ["pk", "primary_key", "primary key", "primarykey"]
 FK_KEYS = ["fk", "foreign_key", "foreign key", "foreignkey", "references"]
@@ -42,6 +48,10 @@ def extract_foreign_keys(library: Library):
     library.resolve_target_primary_keys(overwrite=True)
 
     foreign_keys = dict()
+
+    if library._rust_model is None:
+        raise ValueError("Rust model not found in library.")
+
     model = library._rust_model.model
     for obj in model.objects:
         connections = library.get_object_connections(obj.name)
@@ -52,85 +62,6 @@ def extract_foreign_keys(library: Library):
         }
 
     return foreign_keys
-
-
-def _find_fk_table(model, ref):
-    """
-    Find the foreign key table in the data model.
-
-    Args:
-        model: The data model.
-        ref (str): The reference string.
-
-    Returns:
-        tuple: A tuple containing the parts and root of the foreign key table.
-    """
-    root, *parts = ref.split(".")
-    for part in parts[:-1]:
-        root = _extract_ref(model, part, root)
-
-    _validate_fk_ref(model, parts, root)
-
-    return parts, root
-
-
-def _extract_ref(model, part, root):
-    """
-    Extract the reference from the data model.
-
-    Args:
-        model: The data model.
-        part (str): The part of the reference.
-        root (str): The root of the reference.
-
-    Returns:
-        str: The updated root of the reference.
-    """
-    ref_obj = next((o for o in model.objects if o.name == root), None)
-    if ref_obj is None:
-        raise ValueError(f"Referenced object '{root}' not found in model.")
-    ref_attr = next((a for a in ref_obj.attributes if a.name == part), None)
-    root = ref_attr.dtypes[0]
-    return root
-
-
-def _validate_fk_ref(model, parts, root):
-    """
-    Validate the foreign key reference in the data model.
-
-    Args:
-        model: The data model.
-        parts (list): The parts of the reference.
-        root (str): The root of the reference.
-
-    Raises:
-        ValueError: If the referenced object or attribute is not found in the model.
-    """
-    ref_obj = next((o for o in model.objects if o.name == root), None)
-    if ref_obj is None:
-        raise ValueError(f"Referenced object '{root}' not found in model.")
-    elif ref_obj and parts[-1] not in [a.name for a in ref_obj.attributes]:
-        raise ValueError(
-            f"Referenced attribute '{parts[-1]}' not found in object '{root}'."
-        )
-
-
-def _find_reference_object(parts: List[str], objects):
-    """
-    Find a reference object in a list of objects.
-
-    Args:
-        parts (List[str]): A list of parts of the reference object.
-        objects: A list of objects.
-
-    Returns:
-        DataModelObject: The reference object.
-    """
-    for obj in objects:
-        if obj.name == parts[0]:
-            return obj
-
-    return None
 
 
 def extract_primary_keys(model, primary_keys):
@@ -195,3 +126,88 @@ def map_pk_types(model, primary_keys) -> dict[str, tuple[str, type]]:
         typed_pks[obj.name] = (attr.name, TYPE_MAPPING[attr.dtypes[0]])
 
     return typed_pks
+
+
+def build_related_vectorsearch_query(
+    *,
+    main_model: Type[SQLBase],
+    related_model: Type[SQLBase],
+    db_models: Library[SQLBase],
+    cosine_distance,
+    offset: int,
+    limit: int,
+    max_distance: Optional[float] = None,
+):
+    """
+    Build a vector-search query that joins a related table providing embeddings.
+
+    The query returns rows from ``main_model`` ordered by the best (minimum)
+    cosine distance from rows in ``related_model``.
+
+    Args:
+        main_model: The table whose rows should be returned.
+        related_model: The table that owns the embedding column used for search.
+        db_models: Library of SQLModel classes (used to inspect relations).
+        cosine_distance: SQL expression for cosine distance.
+        offset: Pagination offset.
+        limit: Pagination limit.
+        max_distance: Optional maximum cosine distance; results exceeding it are
+            excluded.
+
+    Returns:
+        A selectable statement yielding (main_model, distance).
+
+    Raises:
+        ValueError: If the tables are not related or required relation metadata
+            is missing.
+    """
+
+    related_name = related_model.__name__
+
+    join_chain = db_models.find_join_chain(
+        source=main_model.__name__,
+        target=related_name,
+    )
+    if not join_chain:
+        raise ValueError(
+            f"No join path between {main_model.__name__} and {related_name}"
+        )
+
+    pk_name = get_primary_key(main_model)
+    pk_column = getattr(main_model, pk_name)
+    min_distance = func.min(cosine_distance).label("distance")
+
+    stmt = select(
+        pk_column.label("pk"),
+        min_distance,
+    ).select_from(main_model)
+
+    stmt = apply_join_chain(
+        stmt,
+        start_cls=main_model,
+        join_chain=join_chain,
+        db_models=db_models,
+    )
+
+    if max_distance is not None:
+        stmt = stmt.where(cosine_distance <= max_distance)
+
+    distance_subquery = (
+        stmt.group_by(pk_column)
+        .order_by(min_distance)
+        .offset(offset)
+        .limit(limit)
+        .subquery()
+    )
+
+    return (
+        select(
+            main_model,
+            distance_subquery.c.distance.label("distance"),
+        )
+        .join(
+            distance_subquery,
+            pk_column == distance_subquery.c.pk,
+        )
+        .order_by(distance_subquery.c.distance)
+    )

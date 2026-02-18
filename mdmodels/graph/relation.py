@@ -27,13 +27,13 @@ from uuid import uuid4
 
 import neomodel as nm
 from neomodel import (
-    StructuredNode,
     Relationship,
-    StructuredRel,
-    RelationshipTo,
     RelationshipFrom,
+    RelationshipTo,
+    StructuredNode,
+    StructuredRel,
+    db,
 )
-from neomodel import db
 
 
 class DynRelationship(Relationship):
@@ -51,7 +51,7 @@ class DynRelationship(Relationship):
         """
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
-        super().connect(node)
+        super().connect(node)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class DynRelationshipTo(RelationshipTo):
@@ -69,7 +69,7 @@ class DynRelationshipTo(RelationshipTo):
         """
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
-        super().connect(node)
+        super().connect(node)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 class DynRelationshipFrom(RelationshipFrom):
@@ -88,7 +88,7 @@ class DynRelationshipFrom(RelationshipFrom):
         if properties:
             self.definition["model"] = _create_dyn_body(properties)
 
-        super().connect(node)
+        super().connect(node)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def add_structured_rel_properties(

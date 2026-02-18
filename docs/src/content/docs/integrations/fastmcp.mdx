@@ -1,0 +1,202 @@
+---
+title: FastMCP
+description: Learn how to turn your data model into MCP tools with FastMCP.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+MD-Models provides MCP (Model Context Protocol) integration that automatically generates MCP tools from your markdown-defined data models. Using FastMCP, MD-Models creates a fully functional MCP server with tools for querying, creating, and aggregating data from your database.
+
+The MCP integration transforms your markdown data models into LLM-accessible tools, allowing language models to interact with your database through a standardized protocol. Each model in your markdown becomes a set of MCP tools for database operations. This enables language models to understand your data schema, create new records, query existing data, and perform aggregations—all through a consistent, well-defined interface.
+
+MCP (Model Context Protocol) is a protocol that allows AI assistants and language models to interact with external systems through tools. By exposing your database as MCP tools, you enable language models to perform database operations autonomously, making your data accessible to AI-powered applications. The tools are self-describing, meaning the language model can discover available operations and their parameters through introspection, reducing the need for manual configuration.
+
+## Setting up the MCP server
+
+<Steps>
+
+1. **Load Your Data Model**
+
+   ```python
+   from mdmodels import DataModel, mcp, sql
+   from fastmcp import FastMCP
+   
+   model = DataModel.from_markdown("model.md")
+   ```
+
+   This gives you a Library containing Pydantic models (for data validation).
+
+2. **Set Up Database Connection**
+
+   ```python
+   db = sql.DatabaseConnector(library=model, **database_config)
+   # Creates tables and returns SQLModel classes
+   db_models = db.create_tables()
+   ```
+
+   The `DatabaseConnector` automatically generates SQLModel classes from your library. The `create_tables()` method returns the generated SQLModel classes (for database operations).
+
+3. **Create MCP Server**
+
+   ```python
+   app = FastMCP("mdmodels")
+   mcp.create_mcp_tools(app=app, db=db)
+   ```
+
+4. **Run the Server**
+
+   ```python
+   if __name__ == "__main__":
+       app.run("stdio")
+   ```
+
+   The server runs in stdio mode, which is the standard for MCP servers.
+
+</Steps>
+
+## CLI Usage
+
+You can run the MCP integration directly from the CLI using the same TOML config file:
+
+```bash
+mdmodels mcp --config config.toml --transport stdio
+```
+
+`stdio` is the default transport and is typically used for desktop MCP clients. For networked deployments, use `--transport sse` or `--transport streamable-http` and optionally set `--host` and `--port`. For complete config details, see [CLI Configuration](/integrations/cli).
+
+## Database Session Middleware
+
+The `DBSessionMiddleware` is automatically added when calling `create_mcp_tools()` and  manages database sessions for MCP requests. This middleware is essential for ensuring proper database connection handling and transaction management. Each MCP tool invocation gets its own database session, which is crucial for maintaining data integrity. All operations within a single tool call are part of the same transaction, so if any operation fails, the entire transaction is rolled back. This prevents partial updates and ensures your database remains in a consistent state.
+
+## Generated Tools
+
+`create_mcp_tools()` automatically generates a comprehensive set of tools for interacting with your database. These tools are designed to be self-describing, meaning language models can discover their capabilities through introspection and use them appropriately.
+
+The generated tools fall into three categories:
+
+- **Schema tools**: These tools help language models understand your data structure. `get_schema` returns JSON schemas for all models, allowing the model to understand field types, required fields, and validation rules. `get_relationships` provides information about how models relate to each other, enabling the model to understand foreign key relationships and navigate your data model structure.
+
+- **Create tools**: For each model in your markdown, a `create_<model_name>` tool is generated (e.g., `create_molecule`, `create_reaction`). These tools accept JSON data matching your model structure and handle the creation of database records. They automatically process nested data, creating related records and establishing foreign key relationships as needed.
+
+- **Query tools**: The `select_from_table` tool allows querying data with flexible filtering capabilities, while `aggregate_from_table` supports aggregations like counts, sums, averages, and more. These tools use the `FilterTask` system for complex query construction, allowing language models to build sophisticated database queries.
+
+- **Vector search tools**: The `vector_search` tool enables semantic search across your data using vector embeddings. This tool allows you to find records based on semantic similarity rather than exact matches, making it powerful for discovering related content, finding similar entities, or performing content-based searches. The tool supports cross-table similarity search, where you can search one table using embeddings from a related table (e.g., finding experiments by protein sequence similarity).
+
+All tools handle nested data insertion automatically and maintain referential integrity. When creating records with relationships, the tools check for existing related records and reuse them when appropriate, preventing duplicate data and ensuring referential integrity is maintained.
+
+## Filtering and Aggregation
+
+The MCP tools support sophisticated filtering and aggregation capabilities, allowing language models to query your database with precision. These features enable complex data retrieval operations that would typically require writing SQL queries manually.
+
+Filters use `FilterTask` objects with table, filter conditions, and combine logic (AND/OR). This structure allows you to build complex queries by combining multiple filter conditions. Each filter specifies a table, a list of filter conditions (each with a column, operation, and value), and how those conditions should be combined (using AND or OR logic).
+
+Here's how to construct filters:
+
+```python
+from mdmodels.sql.filter import FilterTask
+
+filters = [
+    FilterTask(
+        table="Molecule",
+        filters=[
+            {"column": "name", "operation": "like", "value": "%Water%"}
+        ],
+        combine="and"
+    )
+]
+```
+
+Aggregations use `Aggregation` objects specifying function (count, sum, avg, min, max, stddev, variance) and column. Aggregations are useful for summarizing data, calculating statistics, and performing analytical queries. You can combine aggregations with filters to get aggregated results for specific subsets of your data.
+
+The available aggregation functions cover common statistical operations: `count` for counting records, `sum` and `avg` for numerical aggregations, `min` and `max` for finding extremes, and `stddev` and `variance` for statistical analysis. Each aggregation operates on a specific column, allowing you to compute statistics for any field in your models.
+
+Here's how to define aggregations:
+
+```python
+from mdmodels.sql.aggregation import Aggregation
+
+aggregations = [
+    Aggregation(function="count", column="id")
+]
+```
+
+## MCP Configuration
+
+You can customize the behavior of MCP tools for individual models by providing a `config` parameter to `create_mcp_tools`. This allows you to control which tools are generated, customize tool descriptions, and configure model-specific behavior.
+
+```python
+from mdmodels.mcp import create_mcp_tools, MCPConfig
+
+app = FastMCP("mdmodels")
+
+create_mcp_tools(
+    app=app,
+    db=db,
+    config={
+        "Molecule": MCPConfig(
+            description="Create a new molecule with chemical properties.",
+            allow_create=True,
+        ),
+        "Reaction": MCPConfig(
+            description="Create a chemical reaction with educts and products.",
+            allow_create=True,
+        ),
+        "Experiment": MCPConfig(
+            allow_create=False,  # Disable create tool for this model
+        ),
+    },
+)
+```
+
+The `config` parameter accepts a dictionary mapping model names (as strings) to `MCPConfig` instances. Each `MCPConfig` supports the following properties:
+
+- **`description`** (Optional[str]): Custom tool description for the model's create tool. Tool descriptions are crucial for language models—they help the model understand what each tool does and when to use it. If not provided, MD-Models generates a generic description. Custom descriptions should be clear and concise, explaining what the tool does and what kind of data it expects. They should mention the model's purpose, key fields, and any important relationships or constraints.
+
+- **`allow_create`** (bool): Controls whether a `create_<model_name>` tool is generated for this model. Defaults to `False`, meaning create tools are disabled by default. Set to `True` to enable creation tools for specific models. This allows you to selectively expose creation capabilities, useful for read-only models or when you want to restrict which models can be created through the MCP interface.
+
+## Nested Data Insertion
+
+MD-Models automatically handles nested data structures. When calling `create_<model>` tools with nested objects, it automatically creates database rows, handles foreign keys, prevents duplicates, and maintains referential integrity. This means you can pass complex, hierarchical data structures to the create tools, and MD-Models will handle all the complexity of breaking them down into database operations.
+
+The nested insertion process works by recursively processing the data structure: when it encounters a nested object that represents a related model, it first checks if a matching record already exists in the database. If a match is found (based on identifying fields), it reuses that record. If not, it creates a new record. This prevents duplicate data and ensures that relationships are properly established.
+
+This automatic handling makes it easy for language models to create complex data structures—they can simply provide the full nested JSON structure, and MD-Models takes care of the rest. The tools maintain referential integrity throughout the process, ensuring that foreign key relationships are valid and that related records exist before references are created.
+
+## Complete Example
+
+Here's a complete example:
+
+```python
+from fastmcp import FastMCP
+from mdmodels import DataModel, mcp, sql
+
+# Load data model and create database connection
+model = DataModel.from_markdown("model.md")
+
+db = sql.DatabaseConnector(library=model, **database_config)
+# Creates tables and returns SQLModel classes
+db_models = db.create_tables()
+
+# Initialize FastMCP app
+app = FastMCP("mdmodels")
+
+# Register MCP tools
+mcp.create_mcp_tools(
+    app=app,
+    db=db,
+    config={
+        "Molecule": mcp.MCPConfig(allow_create=True),
+        "Reaction": mcp.MCPConfig(allow_create=True),
+    },
+)
+
+# Run the server
+if __name__ == "__main__":
+    app.run("stdio")
+```
+
+This creates a fully functional MCP server with tools for every model. Language models can connect and use the tools for schema introspection, data creation, querying, and aggregation. The server runs in stdio mode, which is the standard for MCP servers, allowing it to communicate with MCP clients through standard input/output streams.
+
+Once running, the MCP server exposes all generated tools to connected language models. The models can discover available tools through introspection, understand their parameters through the JSON schemas, and use them to interact with your database. This enables AI-powered applications to autonomously work with your data, performing complex operations like creating related records, querying with filters, and computing aggregations—all without requiring manual SQL queries or custom API endpoints.
+
+The MCP protocol ensures that tool invocations are properly structured and validated, and the FastMCP framework handles the communication protocol details, allowing you to focus on defining your data models and letting MD-Models generate the tools automatically.

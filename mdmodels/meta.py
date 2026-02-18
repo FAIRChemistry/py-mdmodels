@@ -73,7 +73,7 @@ class DataModelMeta(XmlModelMeta):
         setattr(
             new_class,
             "__mdmodels__",
-            MetaConfig(),
+            MetaConfig(),  # pyright: ignore[reportArgumentType, reportCallIssue]
         )
 
         return new_class

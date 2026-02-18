@@ -1,12 +1,23 @@
-ARG PYTHON_VERSION=3.12
-
+ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-COPY . .
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential pkg-config && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install poetry pytest-cov pytest-httpx
-RUN poetry install --extras "chat" --extras "graph" --extras "sql" --extras "dev"
+COPY pyproject.toml README.md /app/
+COPY mdmodels /app/mdmodels
+COPY tests /app/tests
 
-CMD ["python3", "-m", "poetry", "run", "pytest", "-vv", "-m", "not expensive", "--cov=mdmodels"]
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install uv && \
+    uv sync --all-extras --group dev --python ${PYTHON_VERSION}
+
+# Run tests by default.
+CMD ["uv", "run", "pytest", "-v", "-m", "not expensive"]

@@ -20,8 +20,8 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
-from pydantic import create_model, BaseModel, field_validator
-from sqlmodel import SQLModel, Field
+from pydantic import BaseModel, create_model, field_validator
+from sqlmodel import Field, SQLModel
 
 
 class LinkedType(BaseModel):
@@ -94,11 +94,11 @@ class LinkedType(BaseModel):
                 ),
             ),
         }
-        return create_model(
+        return create_model(  # pyright: ignore[reportCallIssue]
             f"{self.source_type}__{self.source_field}__{self.target_type}__Link",
             __base__=SQLModel,
             __cls_kwargs__={"table": True},
-            **field_definitions,
+            **field_definitions,  # pyright: ignore[reportArgumentType]
         )
 
     @staticmethod

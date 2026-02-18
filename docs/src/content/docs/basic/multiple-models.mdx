@@ -1,0 +1,51 @@
+---
+title: Working with Multiple Models
+description: Learn how to explore relationships between different object types in your data model.
+---
+
+When your data model includes multiple object types (which is common in real-world applications), the Library provides several methods to help you understand and work with the relationships between them. These methods are particularly useful when you're building tools that need to understand your data model structure, or when you're exploring a model you haven't worked with before.
+
+## Iterating Over Models
+
+The `models()` method lets you iterate over all the object types defined in your Library. This is useful when you're building generic tools that need to work with any model, or when you want to programmatically discover what's available:
+
+```python
+# Iterate over all models
+for name, model_class in library.models():
+    print(f"Found model: {name}")
+    print(f"Class: {model_class}")
+```
+
+Each iteration yields a tuple containing the model name (as a string) and the corresponding class object. This lets you work with models dynamically, without hardcoding specific model names in your code.
+
+## Checking Relationships
+
+In complex data models, objects are often related to each other, for example, a `ChemicalProject` contains `Molecules`, and `Experiments` reference those `Molecules`. The `is_related()` method lets you check if two object types are connected in your data model:
+
+```python
+# Check if ChemicalProject and Molecule are related
+is_related = library.is_related("ChemicalProject", "Molecule")
+print(is_related)  # True if they're connected in the model
+
+# You can also use the classes directly
+is_related = library.is_related(
+    library.ChemicalProject,
+    library.Molecule
+)
+```
+
+This method returns `True` if there's any relationship between the two types, whether it's a direct containment (like a project containing molecules), a reference (like an experiment referencing a molecule), or any other connection defined in your markdown. This is useful for validation, code generation, or building user interfaces that need to understand model relationships.
+
+## Getting Relations
+
+To see exactly how objects are related, use `get_relations()`. This method returns detailed information about all relationships for a given object type:
+
+```python
+# Get all relations for ChemicalProject
+relations = library.get_relations("ChemicalProject")
+for target_name, (relation_type, connection) in relations.items():
+    print(f"ChemicalProject -> {target_name}: {relation_type}")
+```
+
+The method returns a dictionary where each key is the name of a related object type, and each value is a tuple containing the relation type and connection details. This gives you a complete picture of how an object connects to others in your model, which is essential for understanding complex data structures or building tools that need to navigate relationships.
+

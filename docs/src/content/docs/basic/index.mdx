@@ -1,0 +1,65 @@
+---
+title: Introduction
+description: Learn what MD-Models is and how it transforms markdown files into Python classes.
+---
+
+## What is MD-Models?
+
+MD-Models is a Python library that transforms markdown files describing data structures into fully functional Python classes. Instead of manually writing Python classes with all their attributes, validation rules, and relationships, you write a simple markdown file describing your data model, and MD-Models automatically generates the Python code for you.
+
+## The Markdown Data Model Format
+
+Data models in MD-Models are defined using a simple, human-readable markdown format. Each object type is described as a section with its attributes listed below, including types, descriptions, defaults, and relationships. This markdown format makes your data models easy to read, understand, and version control. They're just text files that anyone can edit.
+
+For example, a `Molecule` object might be defined like this:
+
+```markdown
+### Molecule
+
+A molecule is an object that represents a chemical entity.
+
+- id
+  - Type: string
+  - Description: The identifier of the molecule.
+- name
+  - Type: string
+  - Description: The name of the molecule.
+- formula
+  - Type: string
+  - Description: The chemical formula.
+```
+
+MD-Models parses this markdown and generates a fully-featured Python class with validation, serialization, and type checking built in.
+
+## Why Markdown?
+
+Markdown is a simple, human-readable format that makes writing and reviewing data models more accessible, especially when traditional schemas are difficult for non-specialists to interpret. Markdown Data Models combine structure with context by including clear descriptions, resource links, images, and code examples alongside fields and types. Plus, markdown can be rendered on the web, masking the technical nature of the data model and making it more accessible to a wider audience. The documentation you are reading right now is rendered from markdown, and so would your data model.
+
+This approach is valuable in real-world settings where models must be understood and agreed upon by diverse groups, such as research teams with varied expertise or businesses where multiple departments must align on definitions before launch. A Markdown data model serves as a shared, version-controlled source of truth that encourages early feedback and adoption while remaining convertible into technical artifacts such as schemas, code, documentation, and databases.
+
+## What Can You Do with MD-Models?
+
+With MD-Models, you can:
+
+- **Generate Python classes** from markdown definitions with automatic validation and type checking
+- **Create databases** from your models, both [relational (SQL)](/databases/sql) and [graph databases (Neo4j)](/databases/graphdb)
+- **Build REST APIs** automatically from your data models with [REST API generation](/rest)
+- **Generate GraphQL schemas** and servers from your markdown definitions with [GraphQL integration](/graphql)
+- **Create MCP (Model Context Protocol) servers** for LLM integration with [MCP tools](/mcp)
+- **Serialize and deserialize** data to/from JSON, XML, and other formats
+- **Query and validate** your data with built-in querying capabilities
+- **Convert between formats** including JSON Schema, XSD, and more
+
+## The Core Workflow
+
+MD-Models follows a simple workflow that forms the foundation of everything you'll do:
+
+1. **Parse the Markdown**: Start with a markdown file (or string) that describes your data structure. MD-Models reads this file and understands the objects, their attributes, types, and relationships.
+
+2. **Get a Library**: The parsing process produces a `Library` object,a container that holds all the Python classes generated from your markdown definitions. Each object type in your markdown becomes a class in the Library.
+
+3. **Use the Models**: Instantiate these classes to create data objects, validate them, serialize them, and work with them just like any other Python objects, but with automatic validation and type checking built in.
+
+4. **Deploy**: From your Library, you can generate [SQL databases](/databases/sql), [graph databases](/databases/graphdb), [REST APIs](/rest), [GraphQL servers](/graphql), or [MCP servers](/mcp) for LLM integration.
+
+This workflow is consistent whether you're loading from a local file, a URL, GitHub, or even converting from JSON Schema. The following guides will walk you through each step in detail.
