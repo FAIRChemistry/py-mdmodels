@@ -5,6 +5,7 @@ description = "Python package for the MDModels Rust crate"
 authors = [{ name = "Jan Range", email = "range.jan@web.de" }]
 requires-python = ">=3.11"
 readme = "README.md"
+license = "MIT"
 dependencies = [
     "mdmodels-core>=0.2.9,<0.3",
     "pydantic-xml>=2.12.1,<3",
