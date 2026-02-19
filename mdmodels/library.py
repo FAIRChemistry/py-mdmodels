@@ -330,6 +330,8 @@ class Library(DottedDict, Generic[T]):
         """
         from sqlmodel import SQLModel
 
+        from mdmodels import DataModel
+
         from .sql import generate_sqlmodel
 
         # assert self.type == "DataModel", "Library must contain DataModel instances"
