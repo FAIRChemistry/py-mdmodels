@@ -43,7 +43,6 @@ import pandas as pd
 from dotted_dict import DottedDict
 from mdmodels_core import DataModel as RSDataModel  # type: ignore
 from pydantic import BaseModel
-from sqlmodel import SQLModel
 
 from mdmodels.path import PathFactory
 from mdmodels.relations import JoinEdge, apply_join_chain, find_join_chain
@@ -51,6 +50,8 @@ from mdmodels.templates import Templates
 from mdmodels.utils import extract_object, extract_option
 
 if TYPE_CHECKING:
+    from sqlmodel import SQLModel
+
     from mdmodels.datamodel import DataModel
     from mdmodels.graph.basenode import BaseNode
     from mdmodels.sql.config import TableConfig
@@ -327,7 +328,8 @@ class Library(DottedDict, Generic[T]):
         Returns:
             Library[SQLModel]: A library containing SQLModel classes
         """
-        from .datamodel import DataModel
+        from sqlmodel import SQLModel
+
         from .sql import generate_sqlmodel
 
         # assert self.type == "DataModel", "Library must contain DataModel instances"
