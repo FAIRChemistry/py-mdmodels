@@ -61,3 +61,6 @@ explicit = true
 name = "testpypi"
 publish-url = "https://test.pypi.org/legacy/"
 url = "https://test.pypi.org/simple/"
+
+[tool.uv]
+prerelease = "allow"
