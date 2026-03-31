@@ -1,7 +1,8 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Literal, Optional
+from typing import TYPE_CHECKING, Dict, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field
+from typing_extensions import Self
 
 MCPOperation = Literal["create", "vector_search"]
 
@@ -33,9 +34,9 @@ class MCPConfig(BaseModel):
         return cls.from_config(AppConfig.from_toml(toml_path), model_name)
 
     @classmethod
-    def map_from_config(cls, config: "AppConfig") -> Dict[str, "MCPConfig"]:
+    def map_from_config(cls, config: "AppConfig") -> Tuple[Dict[str, Self], bool]:
         """Create MCP runtime config mapping for all configured models/tools."""
-        return {
+        config_dict = {
             model_name: cls(
                 description=tool_cfg.description,
                 allow_create=tool_cfg.allow_create,
@@ -43,8 +44,10 @@ class MCPConfig(BaseModel):
             for model_name, tool_cfg in config.mcp.tools.items()
         }
 
+        return config_dict, config.mcp.all_create
+
     @classmethod
-    def map_from_toml(cls, toml_path: str | Path) -> Dict[str, "MCPConfig"]:
+    def map_from_toml(cls, toml_path: str | Path) -> Tuple[Dict[str, Self], bool]:
         """Create MCP runtime config mapping from TOML."""
         from mdmodels.config import AppConfig
 
