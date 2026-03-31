@@ -15,6 +15,7 @@ Use the CLI when you want to:
 - expose the same data model as MCP tools for AI clients,
 - keep model path, database settings, and integration settings in one shared config,
 - run the same setup consistently across local machines, CI, and servers.
+- point `model.repo` at a GitHub repository so the markdown schema is loaded from `raw.githubusercontent.com` while SQL and integration settings stay in your TOML.
 
 In short: if your workflow is "configure once, run anywhere", the CLI is the most direct path.
 
@@ -174,8 +175,42 @@ password = "postgres"
 ## `model` Section
 
 - `model.path` (`Path`, required): path to your markdown model file.
+- `model.repo` (`string`, optional): GitHub repository as `owner/repo`. When set, the model is fetched from GitHub’s raw content URLs (`raw.githubusercontent.com`) instead of the local filesystem.
+- `model.branch` (`string`, optional): branch to read from. Do not set `model.tag` in the same file when using a branch.
+- `model.tag` (`string`, optional): tag to read from. Mutually exclusive with `model.branch`. If neither `branch` nor `tag` is set but `repo` is set, the default ref is `main`.
 
-When using the CLI, relative `model.path` values are resolved relative to the config file location, which keeps projects portable across environments.
+When **only** `model.path` is used (no `model.repo`), relative `model.path` values are resolved relative to the config file location, which keeps projects portable across environments.
+
+When **`model.repo` is set**, `model.path` must be the path to the markdown file **inside the repository** (for example `specifications/model.md`). It is **not** resolved against the config file directory on disk; it is passed through as the file path in the repo when building the raw GitHub URL. Use forward-slash style paths as in the repo tree.
+
+### Example: model from GitHub
+
+Pin a published schema in CI or on a server without copying the markdown into your deploy artifact:
+
+```toml
+[model]
+repo = "my-org/my-specs"
+branch = "main"
+path = "models/experiment.md"
+
+[sql]
+type = "sqlite"
+database = "app.db"
+# ... rest of config (same as local usage)
+```
+
+To pin an immutable release, use `tag` instead of `branch`:
+
+```toml
+[model]
+repo = "my-org/my-specs"
+tag = "v1.0.0"
+path = "models/experiment.md"
+```
+
+All CLI commands that load config (`init`, `rest`, `mcp`, and `install` via the same config) will use the remote model when `repo` is present. You still keep `sql`, `rest`, and `mcp` sections locally—only what the markdown schema defines is pulled from GitHub.
+
+**Requirements:** The repository (or the chosen branch/tag) must be **public**, or GitHub must allow unauthenticated raw access for your use case. Private repos typically need a token or a vendored copy of the schema; the CLI fetches via HTTPS without git clone. The model file must be valid MD-Models markdown, as with a local file.
 
 ## `sql` Section
 
