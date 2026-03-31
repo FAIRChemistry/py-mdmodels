@@ -183,7 +183,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UNIT_MAPPING[base.bases[0].to_string()],
             exponent=exponent,
-            scale=int(math.log10(base.scale)),
+            scale=int(math.log10(base.scale)),  # pyright: ignore[reportArgumentType]
             multiplier=1.0,
         )
     elif isinstance(base, Unit):
@@ -193,7 +193,7 @@ def _process_base_unit(
                 kind=UNIT_MAPPING[base.bases[0].to_string()],
                 exponent=exponent,
                 scale=1,
-                multiplier=base.scale,
+                multiplier=base.scale,  # pyright: ignore[reportArgumentType]
             )
         else:
             unit_def.add_to_base_units(
@@ -206,7 +206,7 @@ def _process_base_unit(
         unit_def.add_to_base_units(
             kind=UNIT_MAPPING[base.bases[0].to_string()],
             exponent=exponent,
-            scale=int(math.log10(base.scale)),
+            scale=int(math.log10(base.scale)),  # pyright: ignore[reportArgumentType]
             multiplier=1.0,
         )
     else:
