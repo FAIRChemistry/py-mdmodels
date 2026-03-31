@@ -31,7 +31,7 @@ mdmodels = "mdmodels.cli:app"
 chat = ["openai>=1.57.0,<2", "tabulate>=0.9.0,<0.10"]
 graph = ["neomodel>=5.4.0,<6"]
 postgres = ["psycopg2-binary>=2.9.11", "sqlmodel>=0.0.22,<0.0.23"]
-mcp = ["fastmcp>=2.13.3", "toon-format==0.9.0b1"]
+mcp = ["fastmcp>=3.1.1", "toon-format==0.9.0b1"]
 rest = ["fastapi>=0.123.8", "pyyaml>=6.0.3", "uvicorn>=0.38.0"]
 graphql = ["strawberry-graphql>=0.296.0", "uvicorn>=0.38.0"]
 mysql = ["pymysql>=1.1.2", "sqlmodel>=0.0.22"]
@@ -63,4 +63,4 @@ publish-url = "https://test.pypi.org/legacy/"
 url = "https://test.pypi.org/simple/"
 
 [tool.uv]
-prerelease = "allow"
+prerelease = "explicit"
