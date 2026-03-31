@@ -51,7 +51,7 @@ class TestGitUtils:
         repo = "owner/repo"
         spec_path = "path/to/file.md"
         expected_url = (
-            "https://raw.githubusercontent.com/owner/repo/main/path/to/file.md"
+            "https://raw.githubusercontent.com/owner/repo/master/path/to/file.md"
         )
         assert create_github_url(None, repo, spec_path, None) == expected_url
 
@@ -82,6 +82,6 @@ class TestGitUtils:
         repo = "owner/repo"
         spec_path = "path/to/file.md"
         expected_url = (
-            "https://raw.githubusercontent.com/owner/repo/main/path/to/file.md"
+            "https://raw.githubusercontent.com/owner/repo/master/path/to/file.md"
         )
         assert create_github_url(None, repo, spec_path, None) == expected_url
