@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import inspect
 import re
-from typing import Annotated, Any, Dict, List, Literal, TypedDict
+from typing import Annotated, Any, Dict, List, Literal, Type, TypedDict, cast
 
 from fastmcp import FastMCP
+from pydantic import BaseModel
 from toon_format import encode
 
-from mdmodels.sql.base import SQLBase
+from mdmodels.datamodel import DataModel
+from mdmodels.templates import Templates
 
 from ...library import Library
 from ...sql import DatabaseConnector, FilterTask, select
 from ...sql.aggregation import Aggregation
+from ...sql.base import SQLBase
+from ...sql.childref import reconstruct_model
 from ...sql.insert import insert_nested
 from ...sql.utils import build_related_vectorsearch_query
 from ...sql.vector import TextEmbedding
@@ -23,67 +27,46 @@ AvailableModels: Any = Any
 AvailableTables: Any = Any
 EmbeddingTables: Any = Any
 
-# Description templates (formatted with table/embed strings at runtime)
 GET_SCHEMA_DESCRIPTION = (
-    "Retrieve the JSON schema definition for any data model object. This tool "
-    "returns the complete schema including field types, descriptions, validation "
-    "rules, and structure. Use this to understand the expected format and "
-    "requirements for creating or validating data objects. Essential for "
-    "understanding what fields are required, optional, and their data types before "
-    "creating new records."
+    "Return the full markdown data model: all fields, types, relationships, and nesting. "
+    'Call this BEFORE any Insert_* tool. Nested fields accept {"row_pk": <id>} to '
+    "reference an existing entry instead of inlining the full object."
 )
 
 GET_RELATIONSHIPS_DESCRIPTION = (
-    "Retrieve database relationships and foreign key connections for any data model "
-    "object. Returns detailed relationship mappings including source/target tables, "
-    "columns, and connection types. Essential for understanding data dependencies, "
-    "building complex queries with JOINs, and navigating the database schema "
-    "structure."
+    "Return foreign key mappings (source/target tables and columns) for a given table. "
+    "Use before filtered queries to verify join paths and column names."
 )
 
 GENERIC_CREATE_DESCRIPTION = (
-    "Create and persist a new {model_name} record in the database with all related "
-    "data. This tool handles complex nested data insertion including foreign key "
-    "relationships. IMPORTANT: Always present the expected schema to the user and "
-    "ask for confirmation before creating the {model_name}. The tool validates all "
-    "data, creates database relationships, and returns the new {model_name} ID upon "
-    "successful creation."
+    '⚠ Deferred — call tool_search("Insert {model_name}") before use.'
+    "Save a new {model_name} entry. Steps (do not skip):"
+    "1. CHECK EXISTING: Run Select_Table first. Offer matching entries for reuse via "
+    '{{"row_pk": <id>}}. Use the exact ID returned — never guess. A wrong ID silently '
+    "corrupts links."
+    "2. ELICIT ONE TOPIC AT A TIME: Ask focused questions per field group. Never expose "
+    "field names or schema terms to the user."
+    "3. CONFIRM: Show a human-readable summary (reused entries by detail, not just ID). "
+    "Save only after explicit confirmation."
 )
 
 SELECT_DESCRIPTION = (
-    "Query and retrieve records from any database table with optional filtering and "
-    "result limiting. This tool performs SELECT operations with optional WHERE "
-    "clause filters and returns matching records. The limit parameter controls "
-    "maximum results returned (default: 20). MANDATORY: When using filters, you "
-    "MUST first call 'get_table_schema' and 'get_table_relationships' to inspect the "
-    "database structure before applying any filters. This ensures correct column "
-    "names, data types, and operations. Each filter must specify the correct table "
-    "enum, valid column name, appropriate operation, and properly typed value. "
-    "Ideal for data exploration, verification, filtering, and reporting. Here are "
-    "the available tables: \n{table_string}"
+    "SELECT from any table with optional filters and row limit (default 20). "
+    "Before filtering, call Get_Table_Schema and Get_Table_Relationships to verify "
+    "column names and types. Available tables:\n{table_string}"
 )
 
 AGGREGATE_DESCRIPTION = (
-    "Perform aggregation operations (count, sum, avg, min, max, stddev, variance) on "
-    "database tables with optional filtering. This tool executes aggregate functions "
-    "on specified columns and returns computed results. MANDATORY: When using "
-    "filters, you MUST first call 'get_table_schema' and 'get_table_relationships' to "
-    "inspect the database structure before applying any filters. This ensures "
-    "correct column names, data types, and operations. Each filter must specify the "
-    "correct table enum, valid column name, appropriate operation, and properly "
-    "typed value. Here are the available tables: \n{table_string}"
+    "Run count/sum/avg/min/max/stddev/variance on any table with optional filters. "
+    "Before filtering, call Get_Table_Schema and Get_Table_Relationships to verify "
+    "column names and types. Available tables:\n{table_string}"
 )
 
 VECTOR_SEARCH_DESCRIPTION = (
-    "Perform vector search on a table, optionally using a related table's embeddings. "
-    "Set `table` to the main table you want returned. Provide `embedding_table` to "
-    "search via a related table's embeddings (e.g., find experiments by protein "
-    "sequence). Results include cosine distance (0.0 identical, 2.0 opposite). Use "
-    "`max_distance` to cap acceptable matches. The limit parameter controls maximum "
-    "results returned (default: 10). If `embedding_table` is omitted, the main table "
-    "is used for embeddings. Before specifying an `embedding_table`, first inspect "
-    "table relationships to ensure the tables are related. Available embedding "
-    "tables:\n{embed_table_string}\nAvailable tables:\n{table_string}"
+    "Cosine-similarity search (0.0=identical, 2.0=opposite). Set `table` for returned "
+    "rows; optionally set `embedding_table` to search via a related table's embeddings. "
+    "Check table relationships before specifying `embedding_table`. "
+    "Available embedding tables:\n{embed_table_string}\nAll tables:\n{table_string}"
 )
 
 
@@ -99,6 +82,7 @@ def create_sql_mcp_tools(
     app: FastMCP,
     db: DatabaseConnector,
     config: Dict[str, MCPConfig],
+    all_create: bool = False,
 ) -> None:
     """Attach MCP tools for schema, create, select, aggregate, and vector search.
 
@@ -155,6 +139,7 @@ def create_sql_mcp_tools(
         model=model,
         db_models=db_models,
         config=config,
+        all_create=all_create,
     )
     # Table-level query/aggregation tools reuse shared FilterTask/Aggregation helpers.
     _register_select_tool(
@@ -189,12 +174,8 @@ def create_sql_mcp_tools(
 def _register_schema_tool(app: FastMCP, model: Library, available_models) -> None:
     """Register JSON-schema tool for any model in the library."""
 
-    def get_schema(object: AvailableModels):  # pyright: ignore[reportInvalidTypeForm]
-        return model[object.name].model_json_schema()
-
-    # Align annotations/signature before FastMCP inspects them (rest/create style).
-    get_schema.__annotations__ = {"object": available_models, "return": dict}  # type: ignore[assignment]
-    get_schema.__signature__ = inspect.signature(get_schema)  # type: ignore[attr-defined]
+    def get_schema():  # pyright: ignore[reportInvalidTypeForm]
+        return model.convert_to(Templates.MARKDOWN)
 
     app.tool(
         get_schema,
@@ -244,12 +225,13 @@ def _register_create_tools(
     model: Library,
     db_models: Library,
     config: Dict[str, MCPConfig],
+    all_create: bool = False,
 ) -> None:
     """Register one create tool per model, with optional per-model descriptions."""
     for model_name in model.keys():
         table_config = config.get(model_name, MCPConfig())
 
-        if not table_config.allow_create:
+        if not table_config.allow_create and not all_create:
             continue
 
         if str(model_name).startswith("_"):
@@ -273,7 +255,7 @@ def _register_create_tools(
 
         app.tool(
             tool_func,
-            name=f"create_{snake_model_name}",
+            name=f"Insert_{snake_model_name}",
             description=description,
         )
 
@@ -288,16 +270,18 @@ def _create_insert_tool(
 ):
     """Factory building a single create_<model> coroutine with nested insert support."""
     snake_model_name = _camel_to_snake(model_name)
+    childref_model = reconstruct_model(data_model_type, flat=True)
 
     async def insert_function(**kwargs: Any):  # pyright: ignore[reportInvalidTypeForm]
         session = CTX_SESSION.get()
         if session is None:
             raise RuntimeError("No active DB session in context")
 
-        data = data_model_type(**kwargs)
+        data = childref_model(**kwargs)
+
         # Convert pydantic payload into SQLModel objects (handles nested relations).
         to_insert = insert_nested(
-            data=data,
+            data=cast(DataModel, data),
             library=model,
             models=db_models,
             session=session,
@@ -322,11 +306,26 @@ def _create_insert_tool(
             session.rollback()
             raise RuntimeError(f"Failed to create {snake_model_name}: {exc}") from exc
 
-    insert_function.__name__ = f"Create_{snake_model_name}"
-    insert_function.__annotations__ = data_model_type.__annotations__
-    insert_function.__signature__ = inspect.signature(data_model_type)
+    insert_function.__name__ = f"Insert_{snake_model_name}"
+    insert_function.__signature__ = _build_signature_from_model(childref_model)
+    insert_function.__annotations__ = {
+        name: field.annotation for name, field in childref_model.model_fields.items()
+    }
 
     return insert_function
+
+
+def _build_signature_from_model(model: Type[BaseModel]) -> inspect.Signature:
+    params = [
+        inspect.Parameter(
+            name=name,
+            kind=inspect.Parameter.KEYWORD_ONLY,
+            default=field.default,
+            annotation=field.annotation,
+        )
+        for name, field in model.model_fields.items()
+    ]
+    return inspect.Signature(params)
 
 
 def _register_select_tool(
@@ -342,6 +341,7 @@ def _register_select_tool(
     def select_from_table(
         table: AvailableTables,  # pyright: ignore[reportInvalidTypeForm]
         limit: int = 20,
+        full: bool = False,
         filters: Annotated[
             List[FilterTask[AvailableModels]],  # pyright: ignore[reportInvalidTypeForm]
             "List of filter tasks to apply to the query. Each task specifies a table, "
@@ -385,7 +385,15 @@ def _register_select_tool(
                 query.limit(limit),  # pyright: ignore[reportCallIssue, reportArgumentType]
             ).all()
 
-        return encode([row.to_dict() for row in result])  # pyright: ignore[reportAttributeAccessIssue]
+        if full:
+            return encode([row.to_dict() for row in result])  # pyright: ignore[reportAttributeAccessIssue]
+        else:
+            return encode(
+                [
+                    {col: getattr(row, col) for col in row.__table__.columns.keys()}  # pyright: ignore[reportAttributeAccessIssue]
+                    for row in result
+                ]
+            )
 
     select_from_table.__annotations__ = {
         "table": available_tables,
@@ -393,6 +401,7 @@ def _register_select_tool(
         "filters": List[FilterTask[available_models]],
         "return": str,
         "filter_logic": Literal["and", "or"],
+        "full": bool,
     }  # type: ignore[assignment]
     select_from_table.__signature__ = inspect.signature(select_from_table)  # type: ignore[attr-defined]
 

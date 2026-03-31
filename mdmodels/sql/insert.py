@@ -22,11 +22,12 @@
 from enum import Enum
 from typing import Any, Dict, List, Tuple, Type
 
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session, SQLModel, select
 
 from mdmodels.datamodel import DataModel
 from mdmodels.library import CrossConnection, Library
 from mdmodels.sql.base import SQLBase
+from mdmodels.sql.childref import ChildRef
 
 
 def insert_nested(
@@ -191,6 +192,16 @@ def _process_connected_attr(
                         created_rows,
                     )
                 )  # type: ignore
+            elif isinstance(item, ChildRef):
+                delayed_attrs[conn.source_attr].append(
+                    fetch_row(
+                        conn=conn,
+                        ref=item,
+                        session=session,
+                        models=models,
+                        memo=memo,
+                    )
+                )  # type: ignore
             else:
                 delayed_attrs[conn.source_attr].append(item)  # type: ignore
     else:
@@ -205,8 +216,48 @@ def _process_connected_attr(
                 created_rows=created_rows,
             )
             delayed_attrs[conn.source_attr] = processed_value  # type: ignore
+        elif isinstance(value, ChildRef):
+            delayed_attrs[conn.source_attr] = fetch_row(
+                conn=conn,
+                ref=value,
+                session=session,
+                models=models,
+                memo=memo,
+            )  # type: ignore
         else:
             delayed_attrs[conn.source_attr] = value  # type: ignore
+
+
+def fetch_row(
+    conn: CrossConnection,
+    ref: ChildRef,
+    session: Session,
+    models: Library,
+    memo: Dict[Tuple[str, Any], SQLModel],
+) -> SQLModel:
+    """
+    Fetch an existing relationship row from the database using a ChildRef.
+    """
+    table = models[conn.target_type]
+    target_key = conn.target_attr or get_primary_key(table)
+    memo_key = (conn.target_type, ref.row_pk)
+
+    if memo_key in memo:
+        return memo[memo_key]
+
+    if target_key == get_primary_key(table):
+        row = session.get(table, ref.row_pk)
+    else:
+        stmt = select(table).where(getattr(table, target_key) == ref.row_pk).limit(1)
+        row = session.exec(stmt).first()
+
+    if row is None:
+        raise ValueError(
+            f"Could not resolve ChildRef(row_pk_={ref.row_pk}) for {conn.target_type}"
+        )
+
+    memo[memo_key] = row
+    return row
 
 
 def _create_or_fetch_object(
