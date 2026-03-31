@@ -231,7 +231,16 @@ class DatabaseConnector:
 
         dotenv.load_dotenv()
 
-        library = DataModel.from_markdown(config.model.path)
+        if config.model.repo is not None:
+            library = DataModel.from_github(
+                repo=config.model.repo,
+                spec_path=config.model.path.as_posix(),
+                branch=config.model.branch,
+                tag=config.model.tag,
+            )
+        else:
+            library = DataModel.from_markdown(config.model.path)
+
         table_config = {
             name: TableConfig.from_config(config, name)
             for name in config.sql.tables.keys()

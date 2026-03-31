@@ -29,7 +29,24 @@ EmbeddingProvider = Literal[
 class ModelConfig(BaseModel):
     """Top-level model source configuration."""
 
-    path: Path
+    path: Path = Field(
+        description="The path to the model file",
+    )
+
+    repo: Optional[str] = Field(
+        default=None,
+        description="The GitHub repository in the format 'owner/repo'",
+    )
+
+    branch: Optional[str] = Field(
+        default=None,
+        description="The branch name",
+    )
+
+    tag: Optional[str] = Field(
+        default=None,
+        description="The tag name",
+    )
 
 
 class OpenAIEmbeddingConfig(BaseModel):
@@ -109,6 +126,7 @@ class MCPToolConfig(BaseModel):
 class MCPConfig(BaseModel):
     """MCP section containing tool configuration per table/model."""
 
+    all_create: bool = False
     tools: Dict[str, MCPToolConfig] = Field(default_factory=dict)
 
 

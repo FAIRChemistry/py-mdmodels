@@ -141,8 +141,8 @@ def mcp(
 
     app = FastMCP(name="mdmodels")
     db = DatabaseConnector.from_config(app_config)
-    mcp_config = MCPConfig.map_from_config(app_config)
-    create_mcp_tools(app=app, db=db, config=mcp_config)
+    mcp_config, all_create = MCPConfig.map_from_config(app_config)
+    create_mcp_tools(app=app, db=db, config=mcp_config, all_create=all_create)
 
     match transport:
         case "stdio":
@@ -229,8 +229,11 @@ def _load_app_config(config: Path) -> AppConfig:
     config_path = config_path.resolve()
 
     app_config = AppConfig.from_toml(config_path)
-    if not app_config.model.path.is_absolute():
-        app_config.model.path = (config_path.parent / app_config.model.path).resolve()
+    if app_config.model.repo is None:
+        if not app_config.model.path.is_absolute():
+            app_config.model.path = (
+                config_path.parent / app_config.model.path
+            ).resolve()
 
     return app_config
 

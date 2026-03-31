@@ -15,6 +15,7 @@ def create_mcp_tools(
     app: FastMCP,
     db: DatabaseConnector,
     config: Optional[Dict[str, MCPConfig]] = None,
+    all_create: bool = False,
 ) -> None:
     """Create and register MCP tools for database operations.
 
@@ -84,7 +85,7 @@ def create_mcp_tools(
     config = config or {}
 
     if isinstance(db, DatabaseConnector):
-        create_sql_mcp_tools(app=app, db=db, config=config)
+        create_sql_mcp_tools(app=app, db=db, config=config, all_create=all_create)
     else:
         raise ValueError(
             f"{type(db)} is not supported yet. Please use 'DatabaseConnector' instead."

@@ -20,6 +20,8 @@
 #   THE SOFTWARE.
 #  -----------------------------------------------------------------------------
 
+import httpx
+
 
 def create_github_url(branch, repo, spec_path, tag):
     """
@@ -37,14 +39,23 @@ def create_github_url(branch, repo, spec_path, tag):
     Raises:
         AssertionError: If neither branch nor tag is provided, or if both are provided.
     """
-    assert (
-        branch is None or tag is None
-    ), "Either branch or tag must be provided, not both"
+    assert branch is None or tag is None, (
+        "Either branch or tag must be provided, not both"
+    )
 
     if branch:
         url = f"https://raw.githubusercontent.com/{repo}/{branch}/{spec_path}"
     elif tag:
         url = f"https://raw.githubusercontent.com/{repo}/tags/{tag}/{spec_path}"
     else:
-        url = f"https://raw.githubusercontent.com/{repo}/main/{spec_path}"
+        # Try main branch first
+        main_url = f"https://raw.githubusercontent.com/{repo}/main/{spec_path}"
+        try:
+            response = httpx.head(main_url, timeout=10)
+            if response.status_code == 200:
+                url = main_url
+            else:
+                url = f"https://raw.githubusercontent.com/{repo}/master/{spec_path}"
+        except (httpx.RequestError, httpx.TimeoutException):
+            url = f"https://raw.githubusercontent.com/{repo}/master/{spec_path}"
     return url
