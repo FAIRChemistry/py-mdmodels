@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #0f172a;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* ── Toolbar ───────────────────────────────────────────────── */
+    #toolbar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 10px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: transparent;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+      margin-bottom: 6px;
+    }
+
+    #title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9b9b93;
+    }
+
+    #btn-copy {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.12);
+      background: rgba(0,0,0,0.04);
+      color: #6b6b63;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.01em;
+    }
+    #btn-copy:hover {
+      background: rgba(0,0,0,0.08);
+      border-color: rgba(0,0,0,0.2);
+      color: #1a1a17;
+    }
+    #btn-copy.success {
+      background: rgba(34,197,94,0.08);
+      border-color: rgba(34,197,94,0.3);
+      color: #16a34a;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { color: #ccccc4; }
+      #toolbar { border-bottom-color: rgba(255,255,255,0.06); }
+      #title { color: #6b7280; font-weight: 600; }
+      #btn-copy {
+        border-color: rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.05);
+        color: #9b9b93;
+        border-radius: 8px;
+      }
+      #btn-copy:hover {
+        background: rgba(255,255,255,0.09);
+        border-color: rgba(255,255,255,0.2);
+        color: #ccccc4;
+      }
+      #btn-copy.success {
+        background: rgba(34,197,94,0.1);
+        border-color: rgba(34,197,94,0.25);
+        color: #4ade80;
+      }
+    }
+
+    #details {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 16px 20px;
+    }
+
+    .meta-row {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .meta-key {
+      min-width: 70px;
+      color: #9b9b93;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .meta-value {
+      color: #1a1a17;
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    #placeholder {
+      color: rgba(148,163,184,0.5);
+      font-size: 13px;
+      padding: 12px 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .meta-key { color: #6b7280; }
+      .meta-value { color: #ccccc4; }
+      #placeholder { color: rgba(148,163,184,0.6); }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="toolbar">
+    <span id="title">Entry</span>
+    <button id="btn-copy">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2.5"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      <span>Copy to clipboard</span>
+    </button>
+  </div>
+
+  <div id="details">
+    <div class="meta-row">
+      <span class="meta-key">Table</span>
+      <span class="meta-value" id="meta-table">—</span>
+    </div>
+    <div class="meta-row">
+      <span class="meta-key">ID</span>
+      <span class="meta-value" id="meta-id">—</span>
+    </div>
+    <div id="placeholder"></div>
+  </div>
+
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+    const app = new App({ name: "Downloader", version: "1.0.0" });
+    let rawData = null;
+
+    app.ontoolresult = ({ content }) => {
+      const text = content?.find(c => c.type === "text");
+      if (!text) return;
+
+      try {
+        const parsed = JSON.parse(text.text);
+        rawData       = parsed.data !== undefined ? parsed.data : parsed;
+        const meta    = parsed._meta || {};
+        const label   = meta.table
+          ? (meta.table.toUpperCase() + (meta.id != null ? "  ·  ID " + meta.id : ""))
+          : "Entry";
+
+        document.getElementById("title").textContent = label;
+        document.getElementById("meta-table").textContent = meta.table ?? "—";
+        document.getElementById("meta-id").textContent = meta.id != null ? String(meta.id) : "—";
+
+        document.getElementById("toolbar").style.display = "flex";
+      } catch (e) {
+        document.getElementById("placeholder").textContent = text.text;
+        document.getElementById("meta-table").textContent = "—";
+        document.getElementById("meta-id").textContent = "—";
+        document.getElementById("toolbar").style.display = "flex";
+      }
+    };
+
+    await app.connect();
+
+    document.getElementById("btn-copy").onclick = async () => {
+      if (rawData === null) return;
+      const btn   = document.getElementById("btn-copy");
+      const label = btn.querySelector("span");
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(rawData, null, 2));
+        btn.classList.add("success");
+        label.textContent = "Copied!";
+        setTimeout(() => {
+          btn.classList.remove("success");
+          label.textContent = "Copy to clipboard";
+        }, 2000);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(document.getElementById("details"));
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
+    };
+  </script>
+</body>
+</html>

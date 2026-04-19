@@ -15,11 +15,11 @@ from ..constants import DOWNLOAD_DESCRIPTION
 from ..middleware import CTX_SESSION
 from ._assets import load_html_asset
 
-VIEW_URI = "ui://mdmodels/json-viewer.html"
+VIEW_URI = "ui://mdmodels/downloader.html"
 
 
 def _load_download_html() -> str:
-    return load_html_asset("json_viewer.html")
+    return load_html_asset("downloader.html")
 
 
 DOWNLOAD_HTML = _load_download_html()
@@ -37,7 +37,7 @@ def register_download_tool(
     rich MCP App — an interactive, collapsible JSON tree with a "Copy to Clipboard"
     button rendered inside the host client.
 
-    The viewer resource is registered once at ``ui://mdmodels/json-viewer.html``
+    The viewer resource is registered once at ``ui://mdmodels/downloader.html``
     and shared across all tool calls.
 
     Args:
@@ -53,7 +53,7 @@ def register_download_tool(
             permissions=ResourcePermissions(clipboardWrite={}),
         ),
     )
-    def _json_viewer_resource() -> str:
+    def _downloader_resource() -> str:
         return DOWNLOAD_HTML
 
     def download_entry(
