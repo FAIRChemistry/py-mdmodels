@@ -28,12 +28,14 @@ from .connector import DatabaseConnector, DatabaseType
 from .create import generate_sqlmodel
 from .filter import FilterSpec, FilterTask, Operation
 from .insert import insert_nested
+from .upsert import upsert_nested
 
 __all__ = [
     "DatabaseConnector",
     "DatabaseType",
     "generate_sqlmodel",
     "insert_nested",
+    "upsert_nested",
     "select",
     "text",
     "FilterTask",

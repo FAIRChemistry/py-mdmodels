@@ -340,12 +340,16 @@ class DatabaseConnector:
 
     @staticmethod
     def _get_embed_col(target: SQLModel) -> Optional[str]:
-        """Get the embedding column name for a model instance."""
+        """Get the embedding column name for a model class or instance."""
 
         if isinstance(target, SQLModelMeta):
-            return target._table_config.embed_column  # pyright: ignore[reportAttributeAccessIssue]
+            cfg = getattr(target, "_table_config", None)
+            return cfg.embed_column if cfg is not None else None
 
-        return target._table_config.embed_column  # pyright: ignore[reportAttributeAccessIssue]
+        cfg = getattr(type(target), "_table_config", None)
+        if cfg is not None:
+            return cfg.embed_column
+        return None
 
     @staticmethod
     @overload
