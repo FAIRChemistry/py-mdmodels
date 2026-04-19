@@ -52,7 +52,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel.force-include]
 "mdmodels/mcp/sql/tools/assets/plot_viewer.html" = "mdmodels/mcp/sql/tools/assets/plot_viewer.html"
-"mdmodels/mcp/sql/tools/assets/json_viewer.html" = "mdmodels/mcp/sql/tools/assets/json_viewer.html"
+"mdmodels/mcp/sql/tools/assets/downloader.html" = "mdmodels/mcp/sql/tools/assets/downloader.html"
+"mdmodels/mcp/sql/tools/assets/data_entry_form.html" = "mdmodels/mcp/sql/tools/assets/data_entry_form.html"
 
 
 [tool.pytest.ini_options]
