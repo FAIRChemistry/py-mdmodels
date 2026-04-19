@@ -5,6 +5,7 @@ This module provides CLI commands for running MDModels applications in different
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal, Optional, cast
@@ -15,11 +16,14 @@ from fastmcp.mcp_config import StdioMCPServer, update_config_file
 from rich import print
 
 from mdmodels.config import AppConfig
+from mdmodels.mcp.auth import OIDCConfig
 
 app = typer.Typer(
     help="MDModels CLI - Manage and run MDModels applications",
     add_completion=False,
 )
+migrate_app = typer.Typer(help="Manage Alembic migrations for MDModels SQL schemas")
+app.add_typer(migrate_app, name="migrate")
 
 
 @app.command()
@@ -106,12 +110,12 @@ def rest(
 def mcp(
     config: Path = typer.Option(..., help="Path to the configuration TOML file"),
     host: str = typer.Option(
-        "127.0.0.1", help="Host to bind the server to (for non-stdio transports)"
+        "localhost", help="Host to bind the server to (for non-stdio transports)"
     ),
     port: int = typer.Option(
         7000, help="Port to bind the server to (for non-stdio transports)"
     ),
-    env: Path = typer.Option(
+    env: Optional[Path] = typer.Option(
         default=None, help="Path to .env file for environment variables"
     ),
     transport: Literal["stdio", "sse", "streamable-http"] = typer.Option(
@@ -134,15 +138,32 @@ def mcp(
     from mdmodels.mcp.config import MCPConfig
     from mdmodels.sql.connector import DatabaseConnector
 
-    if env is not None:
-        dotenv.load_dotenv(dotenv_path=env)
+    # Load .env so OIDC_BASE_URL matches the MCP URL in the client (e.g. 127.0.0.1 vs localhost).
+    # override=True: project .env wins over stale shell exports during local dev.
+    if env:
+        dotenv.load_dotenv(dotenv_path=env, override=True)
+    else:
+        dotenv.load_dotenv(override=True)
 
     app_config = _load_app_config(config)
 
     app = FastMCP(name="mdmodels")
     db = DatabaseConnector.from_config(app_config)
-    mcp_config, all_create = MCPConfig.map_from_config(app_config)
-    create_mcp_tools(app=app, db=db, config=mcp_config, all_create=all_create)
+    mcp_config, all_create, auth = MCPConfig.map_from_config(app_config)
+
+    if transport == "stdio":
+        auth = None
+
+    create_mcp_tools(
+        app=app,
+        db=db,
+        config=mcp_config,
+        all_create=all_create,
+        auth=app_config.mcp.auth,
+    )
+
+    if auth:
+        OIDCConfig.from_env().add_to_mcp_app(app)
 
     match transport:
         case "stdio":
@@ -151,8 +172,6 @@ def mcp(
             app.run("sse", host=host, port=port)
         case "streamable-http":
             app.run("streamable-http", host=host, port=port)
-        case _:
-            raise ValueError(f"Invalid transport: {transport}")
 
 
 @app.command()
@@ -216,6 +235,91 @@ def install(
     print(f"[green]Successfully installed '{name}' in Claude Desktop[/green]")
 
 
+@migrate_app.command("revision")
+def migrate_revision(
+    config: Path = typer.Option(..., help="Path to the configuration TOML file"),
+    message: str = typer.Option(..., "--message", "-m", help="Revision message"),
+    autogenerate: bool = typer.Option(
+        True, "--autogenerate/--no-autogenerate", help="Enable autogeneration"
+    ),
+    alembic_ini: Path = typer.Option(
+        Path("alembic.ini"), help="Path to alembic.ini"
+    ),
+    env: Optional[Path] = typer.Option(
+        default=None, help="Path to .env file for environment variables"
+    ),
+):
+    """Create a new Alembic migration revision."""
+    args = ["revision", "-m", message]
+    if autogenerate:
+        args.append("--autogenerate")
+    _run_alembic(
+        alembic_ini=alembic_ini,
+        config=config,
+        env=env,
+        args=args,
+    )
+
+
+@migrate_app.command("upgrade")
+def migrate_upgrade(
+    config: Path = typer.Option(..., help="Path to the configuration TOML file"),
+    revision: str = typer.Argument("head", help="Target revision (default: head)"),
+    alembic_ini: Path = typer.Option(
+        Path("alembic.ini"), help="Path to alembic.ini"
+    ),
+    env: Optional[Path] = typer.Option(
+        default=None, help="Path to .env file for environment variables"
+    ),
+):
+    """Apply Alembic migrations up to target revision."""
+    _run_alembic(
+        alembic_ini=alembic_ini,
+        config=config,
+        env=env,
+        args=["upgrade", revision],
+    )
+
+
+@migrate_app.command("downgrade")
+def migrate_downgrade(
+    config: Path = typer.Option(..., help="Path to the configuration TOML file"),
+    revision: str = typer.Argument(..., help="Target revision"),
+    alembic_ini: Path = typer.Option(
+        Path("alembic.ini"), help="Path to alembic.ini"
+    ),
+    env: Optional[Path] = typer.Option(
+        default=None, help="Path to .env file for environment variables"
+    ),
+):
+    """Downgrade Alembic migrations down to target revision."""
+    _run_alembic(
+        alembic_ini=alembic_ini,
+        config=config,
+        env=env,
+        args=["downgrade", revision],
+    )
+
+
+@migrate_app.command("check")
+def migrate_check(
+    config: Path = typer.Option(..., help="Path to the configuration TOML file"),
+    alembic_ini: Path = typer.Option(
+        Path("alembic.ini"), help="Path to alembic.ini"
+    ),
+    env: Optional[Path] = typer.Option(
+        default=None, help="Path to .env file for environment variables"
+    ),
+):
+    """Fail if model/config schema changes are not reflected in Alembic migrations."""
+    _run_alembic(
+        alembic_ini=alembic_ini,
+        config=config,
+        env=env,
+        args=["check"],
+    )
+
+
 def _load_app_config(config: Path) -> AppConfig:
     """Load config and normalize contained paths to absolute.
 
@@ -236,6 +340,58 @@ def _load_app_config(config: Path) -> AppConfig:
             ).resolve()
 
     return app_config
+
+
+def _run_alembic(
+    *,
+    alembic_ini: Path,
+    config: Path,
+    env: Optional[Path],
+    args: list[str],
+) -> None:
+    from mdmodels.sql.migrations import build_database_url
+
+    if env:
+        dotenv.load_dotenv(dotenv_path=env, override=True)
+    else:
+        dotenv.load_dotenv(override=True)
+
+    config_path = config if config.is_absolute() else (Path.cwd() / config)
+    config_path = config_path.resolve()
+
+    if not config_path.exists():
+        raise typer.BadParameter(f"Config file not found: {config_path}")
+
+    alembic_ini_path = (
+        alembic_ini if alembic_ini.is_absolute() else (Path.cwd() / alembic_ini)
+    ).resolve()
+
+    if not alembic_ini_path.exists():
+        raise typer.BadParameter(
+            f"Alembic config not found: {alembic_ini_path}. "
+            "Create alembic.ini and migrations/env.py first."
+        )
+
+    db_url = build_database_url(config_path)
+    env_vars = os.environ.copy()
+    env_vars["MDMODELS_CONFIG"] = str(config_path)
+    env_vars["DATABASE_URL"] = db_url
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "alembic",
+        "-c",
+        str(alembic_ini_path),
+        "-x",
+        f"config={config_path}",
+        *args,
+    ]
+
+    try:
+        subprocess.run(cmd, check=True, env=env_vars)
+    except subprocess.CalledProcessError as exc:
+        raise typer.Exit(code=exc.returncode) from exc
 
 
 def get_claude_config_path() -> Path | None:
