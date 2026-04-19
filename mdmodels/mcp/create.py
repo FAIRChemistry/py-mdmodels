@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 from fastmcp import FastMCP
 
+from mdmodels.config import AuthMethod
 from mdmodels.mcp.config import MCPConfig
 from mdmodels.sql.connector import DatabaseConnector
 
@@ -16,6 +17,7 @@ def create_mcp_tools(
     db: DatabaseConnector,
     config: Optional[Dict[str, MCPConfig]] = None,
     all_create: bool = False,
+    auth: Optional[AuthMethod] = None,
 ) -> None:
     """Create and register MCP tools for database operations.
 
@@ -85,7 +87,13 @@ def create_mcp_tools(
     config = config or {}
 
     if isinstance(db, DatabaseConnector):
-        create_sql_mcp_tools(app=app, db=db, config=config, all_create=all_create)
+        create_sql_mcp_tools(
+            app=app,
+            db=db,
+            config=config,
+            all_create=all_create,
+            auth=auth,
+        )
     else:
         raise ValueError(
             f"{type(db)} is not supported yet. Please use 'DatabaseConnector' instead."

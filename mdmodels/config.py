@@ -24,6 +24,7 @@ EmbeddingProvider = Literal[
     "openai",
     "huggingface",
 ]
+AuthMethod = Literal["oidc"]
 
 
 class ModelConfig(BaseModel):
@@ -121,12 +122,14 @@ class MCPToolConfig(BaseModel):
 
     description: Optional[str] = None
     allow_create: bool = False
+    shared: bool = False
 
 
 class MCPConfig(BaseModel):
     """MCP section containing tool configuration per table/model."""
 
     all_create: bool = False
+    auth: Optional[AuthMethod] = None
     tools: Dict[str, MCPToolConfig] = Field(default_factory=dict)
 
 
