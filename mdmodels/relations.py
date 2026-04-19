@@ -4,6 +4,7 @@ from collections import deque
 from functools import lru_cache
 from typing import Any, Iterable, Literal, Type, TypedDict, get_origin
 
+from sqlalchemy.orm import RelationshipProperty
 from pydantic import BaseModel
 
 from mdmodels.utils import extract_dtype
@@ -22,6 +23,11 @@ class JoinEdge(TypedDict):
     to_field: str
     is_many: bool
     direction: Literal["down", "up"]
+
+
+def _is_relationship_attr(attr: Any) -> bool:
+    prop = getattr(attr, "property", None)
+    return isinstance(prop, RelationshipProperty)
 
 
 def find_join_chain(
@@ -76,12 +82,25 @@ def apply_join_chain(
         next_cls = db_models[edge["to_type"]]
 
         rel_attr = getattr(current_cls, edge["from_field"], None)
-        if rel_attr is not None:
+        if _is_relationship_attr(rel_attr):
             stmt = stmt.join(rel_attr)
         else:
+            # For reverse ("up") edges, the relationship often lives on next_cls.
+            # Example: Measurement -> Replicate uses Replicate.measurements.
+            reverse_rel_attr = getattr(next_cls, edge["to_field"], None)
+            if _is_relationship_attr(reverse_rel_attr):
+                stmt = stmt.join(reverse_rel_attr)
+                current_cls = next_cls
+                continue
+
             left_col = getattr(current_cls, edge["from_field"], None)
             right_col = getattr(next_cls, edge["to_field"], None)
-            if left_col is None or right_col is None:
+            if (
+                left_col is None
+                or right_col is None
+                or _is_relationship_attr(left_col)
+                or _is_relationship_attr(right_col)
+            ):
                 raise ValueError(
                     f"Join attribute not found for edge {edge['from_type']} -> {edge['to_type']}"
                 )
