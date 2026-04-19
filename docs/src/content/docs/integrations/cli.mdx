@@ -13,6 +13,7 @@ Use the CLI when you want to:
 
 - start a REST API quickly from an existing markdown model,
 - expose the same data model as MCP tools for AI clients,
+- manage SQL schema migrations from the same config file,
 - keep model path, database settings, and integration settings in one shared config,
 - run the same setup consistently across local machines, CI, and servers.
 - point `model.repo` at a GitHub repository so the markdown schema is loaded from `raw.githubusercontent.com` while SQL and integration settings stay in your TOML.
@@ -33,7 +34,23 @@ Another advantage is alignment across teams: data engineers, backend developers,
 
    By default this creates SQL tables from your model. Use `--create-tables false` if you only want to validate config and connection setup.
 
-2. **Run REST API**
+2. **Create a migration revision (Alembic)**
+
+   ```bash
+   mdmodels migrate revision --config config.toml --message "describe schema change"
+   ```
+
+   This autogenerates a migration by comparing the current database schema with metadata rebuilt from your markdown model + `config.toml`.
+
+3. **Apply migrations**
+
+   ```bash
+   mdmodels migrate upgrade --config config.toml head
+   ```
+
+   Use `mdmodels migrate check --config config.toml` in CI to fail when model/config schema changes are missing migrations.
+
+4. **Run REST API**
 
    ```bash
    mdmodels rest --config config.toml
@@ -41,7 +58,7 @@ Another advantage is alignment across teams: data engineers, backend developers,
 
    Optional flags include `--host`, `--port`, `--name`, `--graphql`, and `--env`.
 
-3. **Run MCP Server**
+5. **Run MCP Server**
 
    ```bash
    mdmodels mcp --config config.toml --transport stdio
@@ -49,7 +66,7 @@ Another advantage is alignment across teams: data engineers, backend developers,
 
    Supported transports are `stdio`, `sse`, and `streamable-http`. For non-stdio transports, you can also set `--host` and `--port`.
 
-4. **Install MCP in Claude Desktop**
+6. **Install MCP in Claude Desktop**
 
    ```bash
    mdmodels install claude-desktop --config config.toml --name mdmodels --project .
@@ -84,6 +101,8 @@ Then validate:
 - Verify create/list/retrieve behavior for at least one model.
 
 During iteration, update your markdown model and rerun the command to verify endpoint shape and validation behavior.
+
+For production workflows, prefer migrations (`mdmodels migrate ...`) over repeatedly calling `init` on existing databases.
 
 If you also need GraphQL in the same app for frontend teams or analytical clients:
 
@@ -135,6 +154,36 @@ Recommended rollout pattern:
 
 For most modern deployments, `streamable-http` is a good default because it integrates cleanly with standard HTTP infrastructure.
 
+### 4) Govern schema changes with Alembic
+
+Use this when your markdown model or SQL table config changes over time and you need reproducible schema history.
+
+Create a migration:
+
+```bash
+mdmodels migrate revision --config config.toml --message "add experiment status"
+```
+
+Apply migrations:
+
+```bash
+mdmodels migrate upgrade --config config.toml head
+```
+
+Validate migration drift (recommended in CI):
+
+```bash
+mdmodels migrate check --config config.toml
+```
+
+Downgrade if needed:
+
+```bash
+mdmodels migrate downgrade --config config.toml <revision>
+```
+
+Migration metadata is generated from your existing `model` and `sql` sections. No separate migration config section is required.
+
 ## Choosing the Right Command
 
 Use `mdmodels rest` when your consumers are web/mobile/backend clients and you want HTTP endpoints with OpenAPI docs. Add `--graphql` when your consumers need flexible field selection and nested queries in one request.
@@ -154,6 +203,8 @@ The root config object contains these sections:
 - `sql`: database connection and per-table SQL behavior.
 - `rest`: endpoint exposure per model.
 - `mcp`: MCP tool exposure per model.
+
+The migration commands also use this same `model` + `sql` configuration to generate Alembic metadata.
 
 This separation keeps concerns clear: the `sql` section defines storage and table behavior, while `rest` and `mcp` define how that data is exposed to external consumers.
 
@@ -282,14 +333,14 @@ Configure MCP tool behavior per model in `[mcp.tools.<ModelName>]`:
 
 ```toml
 [mcp.tools.Experiment]
-description = "Create a new experiment entry."
+description = "Upsert an experiment entry."
 allow_create = true
 ```
 
 Fields:
 
 - `description` (`string`, optional)
-- `allow_create` (`bool`, default `false`)
+- `allow_create` (`bool`, default `false`) - enables `Upsert_<ModelName>` for that model.
 
 This lets you expose only the MCP tools you want. A common pattern is enabling `allow_create` only for selected models and keeping others query-only.
 
@@ -310,7 +361,7 @@ This is especially useful for credentials and provider keys. Keeping sensitive v
 ## Operational Notes
 
 - `mdmodels init` creates tables by default (`--create-tables true`).
-- For stricter production workflows, run schema setup as a controlled deployment step and use `mdmodels init --create-tables false` when you only want startup checks.
+- For stricter production workflows, prefer `mdmodels migrate revision/upgrade/check` and use `mdmodels init --create-tables false` when you only want startup checks.
 - Use explicit `--host` and `--port` values in infrastructure environments to avoid accidental defaults for `rest` and non-`stdio` MCP transports.
 
 ## Troubleshooting Tips
@@ -319,6 +370,7 @@ This is especially useful for credentials and provider keys. Keeping sensitive v
 - If database connection fails, verify `sql.type` and connection values (`host`, `port`, `database`, credentials).
 - If MCP tools are missing, confirm the model names under `[mcp.tools.<ModelName>]` match your generated model names.
 - If vector search is not available, check table embedding settings under `[sql.tables.<TableName>.embedding]`.
+- If migration commands fail, verify `alembic.ini` and `migrations/env.py` exist in the project root and that your `--config` path points to the expected TOML file.
 
 ## Complete Example
 
@@ -341,6 +393,6 @@ embedding.model = "text-embedding-3-small"
 StrendaBiocatalysis = ["create", "list", "retrieve", "search", "vectorsearch"]
 
 [mcp.tools.StrendaBiocatalysis]
-description = "Create a new Strenda-biocatalysis project"
+description = "Upsert a Strenda-biocatalysis project"
 allow_create = true
 ```

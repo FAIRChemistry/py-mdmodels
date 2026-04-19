@@ -5,9 +5,9 @@ description: Learn how to turn your data model into MCP tools with FastMCP.
 
 import { Steps } from '@astrojs/starlight/components';
 
-MD-Models provides MCP (Model Context Protocol) integration that automatically generates MCP tools from your markdown-defined data models. Using FastMCP, MD-Models creates a fully functional MCP server with tools for querying, creating, and aggregating data from your database.
+MD-Models provides MCP (Model Context Protocol) integration that automatically generates MCP tools from your markdown-defined data models. Using FastMCP, MD-Models creates a fully functional MCP server with tools for querying, upserting, and aggregating data from your database.
 
-The MCP integration transforms your markdown data models into LLM-accessible tools, allowing language models to interact with your database through a standardized protocol. Each model in your markdown becomes a set of MCP tools for database operations. This enables language models to understand your data schema, create new records, query existing data, and perform aggregations—all through a consistent, well-defined interface.
+The MCP integration transforms your markdown data models into LLM-accessible tools, allowing language models to interact with your database through a standardized protocol. Each model in your markdown becomes a set of MCP tools for database operations. This enables language models to understand your data schema, upsert records, query existing data, and perform aggregations—all through a consistent, well-defined interface.
 
 MCP (Model Context Protocol) is a protocol that allows AI assistants and language models to interact with external systems through tools. By exposing your database as MCP tools, you enable language models to perform database operations autonomously, making your data accessible to AI-powered applications. The tools are self-describing, meaning the language model can discover available operations and their parameters through introspection, reducing the need for manual configuration.
 
@@ -72,17 +72,19 @@ The `DBSessionMiddleware` is automatically added when calling `create_mcp_tools(
 
 `create_mcp_tools()` automatically generates a comprehensive set of tools for interacting with your database. These tools are designed to be self-describing, meaning language models can discover their capabilities through introspection and use them appropriately.
 
-The generated tools fall into three categories:
+The generated tools fall into four categories:
 
 - **Schema tools**: These tools help language models understand your data structure. `get_schema` returns JSON schemas for all models, allowing the model to understand field types, required fields, and validation rules. `get_relationships` provides information about how models relate to each other, enabling the model to understand foreign key relationships and navigate your data model structure.
 
-- **Create tools**: For each model in your markdown, a `create_<model_name>` tool is generated (e.g., `create_molecule`, `create_reaction`). These tools accept JSON data matching your model structure and handle the creation of database records. They automatically process nested data, creating related records and establishing foreign key relationships as needed.
+- **Upsert tools**: For each model in your markdown, an `Upsert_<ModelName>` tool is generated (for example, `Upsert_Molecule`, `Upsert_Reaction`). Each payload item accepts an optional top-level `row_pk`. If `row_pk` matches an existing row, the row is updated; otherwise, a new row is created.
+
+- **Relationship reference rules**: Upsert payloads are intentionally flat. For related objects, use `ChildRef` payloads (`{"row_pk": <id>}`) instead of nested inline objects. For array-valued relationships, upsert behavior is append+dedupe when the target row already exists.
 
 - **Query tools**: The `select_from_table` tool allows querying data with flexible filtering capabilities, while `aggregate_from_table` supports aggregations like counts, sums, averages, and more. These tools use the `FilterTask` system for complex query construction, allowing language models to build sophisticated database queries.
 
 - **Vector search tools**: The `vector_search` tool enables semantic search across your data using vector embeddings. This tool allows you to find records based on semantic similarity rather than exact matches, making it powerful for discovering related content, finding similar entities, or performing content-based searches. The tool supports cross-table similarity search, where you can search one table using embeddings from a related table (e.g., finding experiments by protein sequence similarity).
 
-All tools handle nested data insertion automatically and maintain referential integrity. When creating records with relationships, the tools check for existing related records and reuse them when appropriate, preventing duplicate data and ensuring referential integrity is maintained.
+All tools maintain referential integrity. Upsert tools resolve `ChildRef` entries against existing rows and reuse those rows by primary key.
 
 ## Filtering and Aggregation
 
@@ -142,7 +144,7 @@ create_mcp_tools(
             allow_create=True,
         ),
         "Experiment": MCPConfig(
-            allow_create=False,  # Disable create tool for this model
+            allow_create=False,  # Disable upsert tool for this model
         ),
     },
 )
@@ -150,17 +152,21 @@ create_mcp_tools(
 
 The `config` parameter accepts a dictionary mapping model names (as strings) to `MCPConfig` instances. Each `MCPConfig` supports the following properties:
 
-- **`description`** (Optional[str]): Custom tool description for the model's create tool. Tool descriptions are crucial for language models—they help the model understand what each tool does and when to use it. If not provided, MD-Models generates a generic description. Custom descriptions should be clear and concise, explaining what the tool does and what kind of data it expects. They should mention the model's purpose, key fields, and any important relationships or constraints.
+- **`description`** (Optional[str]): Custom tool description for the model's upsert tool. Tool descriptions are crucial for language models—they help the model understand what each tool does and when to use it. If not provided, MD-Models generates a generic description. Custom descriptions should be clear and concise, explaining what the tool does and what kind of data it expects. They should mention the model's purpose, key fields, and any important relationships or constraints.
 
-- **`allow_create`** (bool): Controls whether a `create_<model_name>` tool is generated for this model. Defaults to `False`, meaning create tools are disabled by default. Set to `True` to enable creation tools for specific models. This allows you to selectively expose creation capabilities, useful for read-only models or when you want to restrict which models can be created through the MCP interface.
+- **`allow_create`** (bool): Controls whether an `Upsert_<ModelName>` tool is generated for this model. Defaults to `False`. Set to `True` to enable upsert/write capability for specific models.
 
-## Nested Data Insertion
+## Upsert Input Semantics
 
-MD-Models automatically handles nested data structures. When calling `create_<model>` tools with nested objects, it automatically creates database rows, handles foreign keys, prevents duplicates, and maintains referential integrity. This means you can pass complex, hierarchical data structures to the create tools, and MD-Models will handle all the complexity of breaking them down into database operations.
+When calling `Upsert_<ModelName>` tools, payload items follow these rules:
 
-The nested insertion process works by recursively processing the data structure: when it encounters a nested object that represents a related model, it first checks if a matching record already exists in the database. If a match is found (based on identifying fields), it reuses that record. If not, it creates a new record. This prevents duplicate data and ensures that relationships are properly established.
+- Use top-level `row_pk` to target an existing row for update.
+- If `row_pk` is omitted, the tool follows create behavior.
+- If both model primary key and `row_pk` are provided and disagree, the operation fails.
+- For related fields, provide `ChildRef` values: `{"row_pk": <id>}`.
+- For array relationships on existing rows, input refs are merged with existing refs (append+dedupe).
 
-This automatic handling makes it easy for language models to create complex data structures—they can simply provide the full nested JSON structure, and MD-Models takes care of the rest. The tools maintain referential integrity throughout the process, ensuring that foreign key relationships are valid and that related records exist before references are created.
+This keeps write behavior explicit and reduces accidental link corruption from guessed or stale IDs.
 
 ## Complete Example
 
@@ -195,7 +201,7 @@ if __name__ == "__main__":
     app.run("stdio")
 ```
 
-This creates a fully functional MCP server with tools for every model. Language models can connect and use the tools for schema introspection, data creation, querying, and aggregation. The server runs in stdio mode, which is the standard for MCP servers, allowing it to communicate with MCP clients through standard input/output streams.
+This creates a fully functional MCP server with tools for every model. Language models can connect and use the tools for schema introspection, upsert operations, querying, and aggregation. The server runs in stdio mode, which is the standard for MCP servers, allowing it to communicate with MCP clients through standard input/output streams.
 
 Once running, the MCP server exposes all generated tools to connected language models. The models can discover available tools through introspection, understand their parameters through the JSON schemas, and use them to interact with your database. This enables AI-powered applications to autonomously work with your data, performing complex operations like creating related records, querying with filters, and computing aggregations—all without requiring manual SQL queries or custom API endpoints.
 
