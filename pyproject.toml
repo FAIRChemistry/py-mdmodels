@@ -22,6 +22,8 @@ dependencies = [
     "dotenv>=0.9.9",
     "pandas>=2.2.3",
     "astropy>=6.1.7",
+    "polars>=1.39.3",
+    "fastexcel>=0.19.0",
 ]
 
 [project.scripts]
@@ -31,7 +33,7 @@ mdmodels = "mdmodels.cli:app"
 chat = ["openai>=1.57.0,<2", "tabulate>=0.9.0,<0.10"]
 graph = ["neomodel>=5.4.0,<6"]
 postgres = ["psycopg2-binary>=2.9.11", "sqlmodel>=0.0.22,<0.0.23"]
-mcp = ["fastmcp>=3.1.1", "toon-format==0.9.0b1"]
+mcp = ["fastmcp[apps]>=3.2.0", "toon-format==0.9.0b1"]
 rest = ["fastapi>=0.123.8", "pyyaml>=6.0.3", "uvicorn>=0.38.0"]
 graphql = ["strawberry-graphql>=0.296.0", "uvicorn>=0.38.0"]
 mysql = ["pymysql>=1.1.2", "sqlmodel>=0.0.22"]
@@ -48,13 +50,23 @@ pgvector = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel.force-include]
+"mdmodels/mcp/sql/tools/assets/plot_viewer.html" = "mdmodels/mcp/sql/tools/assets/plot_viewer.html"
+"mdmodels/mcp/sql/tools/assets/json_viewer.html" = "mdmodels/mcp/sql/tools/assets/json_viewer.html"
+"mdmodels/mcp/skills/SKILL.md" = "mdmodels/mcp/skills/SKILL.md"
+
 [tool.pytest.ini_options]
 markers = [
     "expensive: marks tests as expensive (deselect with '-m \"not expensive\"')",
 ]
 
 [dependency-groups]
-dev = ["pytest-cov>=6.3.0", "pytest-httpx>=0.35.0", "pytest-sugar>=1.1.1"]
+dev = [
+    "alembic>=1.16.5",
+    "pytest-cov>=6.3.0",
+    "pytest-httpx>=0.35.0",
+    "pytest-sugar>=1.1.1",
+]
 
 [[tool.uv.index]]
 explicit = true
