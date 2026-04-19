@@ -60,6 +60,17 @@ PLOT_DESCRIPTION = (
     "for categorical x + numeric y, and 'scatter' or 'line' for two numeric axes."
 )
 
+DATA_ENTRY_DESCRIPTION = (
+    "Collect structured user input through an interactive typed form. "
+    "Use this when required values are missing from context before creating/updating data. "
+    "Provide clear field labels, strict field types, and enum options when choices are constrained. "
+    "Enums can also be used to select existing rows for relationship linking: the model should map labels "
+    "to known row identifiers and then use that mapping in follow-up upsert/create calls to connect rows. "
+    "Use LaTeX in field labels/descriptions when scientific symbols, equations, or units need clear notation. "
+    "Group related fields via `group` headings and keep forms compact. "
+    "After the user submits, validated values are returned to the conversation so execution can continue."
+)
+
 VECTOR_SEARCH_DESCRIPTION = (
     "Cosine-similarity search (0.0=identical, 2.0=opposite). Set `table` for returned "
     "rows; optionally set `embedding_table` to search via a related table's embeddings. "

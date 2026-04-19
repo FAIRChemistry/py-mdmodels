@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #1a1a17;
+      min-height: 100vh;
+    }
+
+    #toolbar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 8px;
+    }
+
+    #title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #9b9b93;
+    }
+
+    #form-root {
+      padding: 8px 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #entry-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #intro {
+      display: none;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #6b6b63;
+      padding: 0 1px;
+    }
+
+    .group {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(var(--group-cols, 1), minmax(0, 1fr));
+      gap: 9px 12px;
+      align-items: start;
+    }
+
+    .group-title {
+      grid-column: 1 / -1;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9b9b93;
+      margin: 0 0 5px;
+    }
+
+    .group+.group .group-title {
+      margin-top: 6px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .field-label {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .required {
+      color: #d14343;
+      font-size: 12px;
+    }
+
+    .badge {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #7f7f77;
+      background: rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 999px;
+      padding: 2px 6px;
+    }
+
+    .field-help {
+      font-size: 11px;
+      line-height: 1.35;
+      color: #7a7a73;
+    }
+
+    .field-constraints {
+      font-size: 10px;
+      color: #8b8b84;
+      line-height: 1.25;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 31px;
+      font-family: inherit;
+      font-size: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: rgba(0, 0, 0, 0.03);
+      color: inherit;
+      padding: 6px 9px;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 78px;
+      line-height: 1.4;
+    }
+
+    input[type="checkbox"] {
+      width: auto;
+      min-height: auto;
+      accent-color: #7b9cba;
+      padding: 0;
+    }
+
+    .checkbox-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: rgba(0, 0, 0, 0.25);
+    }
+
+    .error {
+      font-size: 10px;
+      color: #d14343;
+      display: none;
+    }
+
+    #actions {
+      display: none;
+      gap: 10px;
+      align-items: center;
+      padding-top: 4px;
+    }
+
+    #submit-btn {
+      border: 1px solid rgba(0, 0, 0, 0.14);
+      background: rgba(0, 0, 0, 0.05);
+      color: #1a1a17;
+      border-radius: 8px;
+      padding: 7px 13px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    #submit-btn:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    #status {
+      font-size: 11px;
+      color: #7a7a73;
+    }
+
+    #placeholder {
+      font-size: 12px;
+      color: rgba(0, 0, 0, 0.35);
+      text-align: center;
+      padding: 52px 14px;
+    }
+
+    #terminal-state {
+      display: none;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.03);
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    #provenance {
+      display: none;
+      border: 1px dashed rgba(0, 0, 0, 0.14);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    #provenance-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #8b8b84;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .prov-row {
+      display: flex;
+      gap: 8px;
+      padding: 2px 0;
+      align-items: flex-start;
+    }
+
+    .prov-key {
+      min-width: 130px;
+      color: #6b6b63;
+      font-weight: 600;
+      word-break: break-word;
+    }
+
+    .prov-value {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        color: #ccccc4;
+      }
+
+      #toolbar {
+        border-bottom-color: rgba(255, 255, 255, 0.06);
+      }
+
+      #title,
+      .group-title {
+        color: #6b7280;
+      }
+
+      #intro,
+      #status {
+        color: #9b9b93;
+      }
+
+      .group {
+        border: none;
+        background: transparent;
+      }
+
+      .badge {
+        color: #9b9b93;
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .field-help {
+        color: #a7a79f;
+      }
+
+      .field-constraints {
+        color: #8d8d87;
+      }
+
+      input,
+      select,
+      textarea {
+        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: #ccccc4;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: rgba(255, 255, 255, 0.28);
+      }
+
+      #submit-btn {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #ccccc4;
+      }
+
+      #placeholder {
+        color: rgba(255, 255, 255, 0.24);
+      }
+
+      #terminal-state {
+        border-color: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      #provenance {
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+
+      #provenance-title {
+        color: #9b9b93;
+      }
+
+      .prov-key {
+        color: #b1b1aa;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="toolbar">
+    <span id="title">Data Entry</span>
+  </div>
+
+  <div id="form-root">
+    <div id="placeholder">Waiting for form definition…</div>
+    <div id="intro"></div>
+    <div id="terminal-state"></div>
+    <div id="provenance">
+      <div id="provenance-title">Submitted values</div>
+      <div id="provenance-body"></div>
+    </div>
+    <form id="entry-form"></form>
+    <div id="actions">
+      <button id="submit-btn" type="button">Send</button>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+    const app = new App({ name: "Data Entry", version: "1.0.0" });
+    let currentPayload = null;
+    let currentState = "open";
+    let sending = false;
+
+    function byId(id) {
+      return document.getElementById(id);
+    }
+
+    function setStatus(text, isError = false) {
+      const status = byId("status");
+      status.textContent = text || "";
+      status.style.color = isError ? "#d14343" : "";
+    }
+
+    function renderMath(container) {
+      if (!container || typeof window.renderMathInElement !== "function") return;
+      window.renderMathInElement(container, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false },
+          { left: "\\[", right: "\\]", display: true }
+        ],
+        throwOnError: false
+      });
+    }
+
+    function formatProvenanceValue(value) {
+      if (value === null || value === undefined) return "—";
+      if (typeof value === "boolean") return value ? "Yes" : "No";
+      if (Array.isArray(value)) return value.map(v => String(v)).join(", ");
+      if (typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
+      }
+      return String(value);
+    }
+
+    function hideTerminalBlocks() {
+      byId("terminal-state").style.display = "none";
+      byId("terminal-state").textContent = "";
+      byId("provenance").style.display = "none";
+      byId("provenance-body").innerHTML = "";
+    }
+
+    function renderTerminalState(payload) {
+      currentState = payload.state || "open";
+      byId("entry-form").innerHTML = "";
+      byId("actions").style.display = "none";
+      byId("intro").style.display = "none";
+      byId("intro").textContent = "";
+      byId("placeholder")?.remove();
+
+      const terminal = byId("terminal-state");
+      terminal.textContent = payload.message || "Data Entry is not available.";
+      terminal.style.display = "block";
+      renderMath(terminal);
+
+      const provenance = payload.submitted_payload;
+      if (payload.state === "completed" && provenance && typeof provenance === "object") {
+        const body = byId("provenance-body");
+        body.innerHTML = "";
+        Object.entries(provenance).forEach(([key, value]) => {
+          const row = document.createElement("div");
+          row.className = "prov-row";
+
+          const keyEl = document.createElement("div");
+          keyEl.className = "prov-key";
+          keyEl.textContent = key;
+          row.appendChild(keyEl);
+
+          const valEl = document.createElement("div");
+          valEl.className = "prov-value";
+          valEl.textContent = formatProvenanceValue(value);
+          row.appendChild(valEl);
+
+          body.appendChild(row);
+        });
+        byId("provenance").style.display = "block";
+        renderMath(byId("provenance"));
+      } else {
+        byId("provenance").style.display = "none";
+      }
+    }
+
+    function textFromToolContent(content) {
+      const part = (content || []).find(item => item?.type === "text");
+      return part?.text || "";
+    }
+
+    function formatValueForChat(value) {
+      if (value === null || value === undefined) return "—";
+      if (typeof value === "boolean") return value ? "Yes" : "No";
+      if (Array.isArray(value)) {
+        if (value.length === 0) return "[]";
+        return value.map(item => String(item)).join(", ");
+      }
+      if (typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
+      }
+      return String(value);
+    }
+
+    function buildChatMessage(payload) {
+      if (!payload || typeof payload !== "object") {
+        return "Submitted form values.";
+      }
+
+      const title = payload.title || "Data Entry";
+      const formId = payload.form_id || "";
+      const values = payload.data && typeof payload.data === "object"
+        ? payload.data
+        : {};
+      const keys = Object.keys(values);
+      const lines = [`**${title}**`, ""];
+
+      if (keys.length === 0) {
+        lines.push("- No values submitted.");
+      } else {
+        keys.forEach(key => {
+          lines.push(`- ${key}: ${formatValueForChat(values[key])}`);
+        });
+      }
+
+      if (payload.note) {
+        lines.push("", `_Note: ${payload.note}_`);
+      }
+      if (formId) {
+        lines.push("", `_Form ID: ${formId}_`);
+      }
+      return lines.join("\n");
+    }
+
+    function normalizeGroupName(field) {
+      if (field.group && String(field.group).trim().length > 0) {
+        return String(field.group).trim();
+      }
+      return "__default__";
+    }
+
+    function fieldTypeTag(field) {
+      if (field.type === "enum") {
+        return "enum";
+      }
+      return field.type;
+    }
+
+    function constraintsText(field) {
+      const notes = [];
+      if (field.type === "enum" && Array.isArray(field.enum) && field.enum.length > 0) {
+        notes.push(`${field.enum.length} options`);
+      }
+      if (field.min_value != null) {
+        notes.push(`min ${field.min_value}`);
+      }
+      if (field.max_value != null) {
+        notes.push(`max ${field.max_value}`);
+      }
+      if (field.min_length != null) {
+        notes.push(`min length ${field.min_length}`);
+      }
+      if (field.max_length != null) {
+        notes.push(`max length ${field.max_length}`);
+      }
+      if (field.pattern) {
+        notes.push("pattern restricted");
+      }
+      return notes.join(" · ");
+    }
+
+    function toPositiveInteger(value) {
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        return null;
+      }
+      return parsed;
+    }
+
+    function resolveGridColumns(request) {
+      const requested = toPositiveInteger(request?.n_cols);
+      if (requested == null) {
+        return 1;
+      }
+      return Math.min(requested, 6);
+    }
+
+    function parseTrackSpec(values) {
+      if (!Array.isArray(values) || values.length < 1 || values.length > 2) {
+        return null;
+      }
+      const parsed = values.map(toPositiveInteger);
+      if (parsed.some(value => value == null)) {
+        return null;
+      }
+      if (parsed.length === 1) {
+        return { start: null, span: parsed[0] };
+      }
+      return { start: parsed[0], span: parsed[1] };
+    }
+
+    function applyFieldLayout(item, field, nCols) {
+      if (nCols <= 1) {
+        return;
+      }
+      const colSpec = parseTrackSpec(field.cols);
+      if (colSpec) {
+        if (colSpec.start == null) {
+          const span = Math.min(colSpec.span, nCols);
+          item.style.gridColumn = `auto / span ${span}`;
+        } else {
+          const start = Math.min(colSpec.start, nCols);
+          const maxSpan = nCols - start + 1;
+          const span = Math.min(colSpec.span, maxSpan);
+          item.style.gridColumn = `${start} / span ${Math.max(span, 1)}`;
+        }
+      }
+
+      const rowSpec = parseTrackSpec(field.rows);
+      if (rowSpec) {
+        if (rowSpec.start == null) {
+          item.style.gridRow = `auto / span ${rowSpec.span}`;
+        } else {
+          item.style.gridRow = `${rowSpec.start} / span ${rowSpec.span}`;
+        }
+      }
+    }
+
+    function buildInput(field) {
+      const id = `field-${field.key}`;
+
+      if (field.type === "textarea") {
+        const el = document.createElement("textarea");
+        el.id = id;
+        el.name = field.key;
+        if (field.placeholder) el.placeholder = field.placeholder;
+        if (field.default != null) el.value = String(field.default);
+        if (field.min_length != null) el.minLength = field.min_length;
+        if (field.max_length != null) el.maxLength = field.max_length;
+        if (field.pattern) el.setAttribute("pattern", field.pattern);
+        return el;
+      }
+
+      if (field.type === "enum") {
+        const sel = document.createElement("select");
+        sel.id = id;
+        sel.name = field.key;
+        if (!field.required) {
+          const none = document.createElement("option");
+          none.value = "";
+          none.textContent = "— none —";
+          sel.appendChild(none);
+        }
+        (field.enum || []).forEach(option => {
+          const opt = document.createElement("option");
+          opt.value = String(option.value);
+          opt.textContent = option.label || String(option.value);
+          sel.appendChild(opt);
+        });
+        if (field.default != null) {
+          sel.value = String(field.default);
+        }
+        return sel;
+      }
+
+      if (field.type === "boolean") {
+        const wrapper = document.createElement("label");
+        wrapper.className = "checkbox-row";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.id = id;
+        check.name = field.key;
+        check.checked = Boolean(field.default);
+        const text = document.createElement("span");
+        text.textContent = field.placeholder || "Enabled";
+        wrapper.appendChild(check);
+        wrapper.appendChild(text);
+        return wrapper;
+      }
+
+      const input = document.createElement("input");
+      input.id = id;
+      input.name = field.key;
+      if (field.type === "string") input.type = "text";
+      if (field.type === "integer" || field.type === "number") input.type = "number";
+      if (field.type === "date") input.type = "date";
+      if (field.type === "datetime") input.type = "datetime-local";
+
+      if (field.placeholder) input.placeholder = field.placeholder;
+      if (field.default != null) input.value = String(field.default);
+      if (field.type === "integer") input.step = field.step != null ? String(field.step) : "1";
+      if (field.type === "number" && field.step != null) input.step = String(field.step);
+      if (field.min_value != null) input.min = String(field.min_value);
+      if (field.max_value != null) input.max = String(field.max_value);
+      if (field.min_length != null) input.minLength = field.min_length;
+      if (field.max_length != null) input.maxLength = field.max_length;
+      if (field.pattern) input.setAttribute("pattern", field.pattern);
+      return input;
+    }
+
+    function renderForm(payload) {
+      currentPayload = payload;
+      currentState = "open";
+      const request = payload.request || {};
+      const fields = Array.isArray(request.fields) ? request.fields : [];
+      const nCols = resolveGridColumns(request);
+      byId("toolbar").style.display = "flex";
+      byId("title").textContent = String(request.title || "Data Entry").toUpperCase();
+      hideTerminalBlocks();
+
+      const intro = byId("intro");
+      if (request.instructions && String(request.instructions).trim().length > 0) {
+        intro.textContent = String(request.instructions);
+        intro.style.display = "block";
+      } else {
+        intro.style.display = "none";
+        intro.textContent = "";
+      }
+
+      const form = byId("entry-form");
+      form.innerHTML = "";
+      const grouped = new Map();
+      fields.forEach(field => {
+        const key = normalizeGroupName(field);
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(field);
+      });
+
+      const showDefaultTitle = grouped.size > 1;
+      for (const [group, groupFields] of grouped.entries()) {
+        const section = document.createElement("section");
+        section.className = "group";
+        section.style.setProperty("--group-cols", String(nCols));
+
+        if (group !== "__default__" || showDefaultTitle) {
+          const heading = document.createElement("h3");
+          heading.className = "group-title";
+          heading.textContent = group === "__default__" ? "General" : group;
+          section.appendChild(heading);
+        }
+
+        groupFields.forEach(field => {
+          const item = document.createElement("div");
+          item.className = "field";
+          item.dataset.key = field.key;
+          item.dataset.type = field.type;
+          applyFieldLayout(item, field, nCols);
+
+          const head = document.createElement("div");
+          head.className = "field-head";
+          const label = document.createElement("label");
+          label.className = "field-label";
+          label.textContent = field.label || field.key;
+          label.setAttribute("for", `field-${field.key}`);
+          head.appendChild(label);
+
+          if (field.required) {
+            const required = document.createElement("span");
+            required.className = "required";
+            required.textContent = "*";
+            required.title = "Required";
+            head.appendChild(required);
+          }
+
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.textContent = fieldTypeTag(field);
+          head.appendChild(badge);
+          item.appendChild(head);
+
+          if (field.description) {
+            const desc = document.createElement("div");
+            desc.className = "field-help";
+            desc.textContent = field.description;
+            item.appendChild(desc);
+          }
+
+          const input = buildInput(field);
+          item.appendChild(input);
+
+          const constraints = constraintsText(field);
+          if (constraints.length > 0) {
+            const note = document.createElement("div");
+            note.className = "field-constraints";
+            note.textContent = constraints;
+            item.appendChild(note);
+          }
+
+          const err = document.createElement("div");
+          err.className = "error";
+          err.id = `error-${field.key}`;
+          item.appendChild(err);
+          section.appendChild(item);
+        });
+
+        form.appendChild(section);
+      }
+
+      byId("actions").style.display = "flex";
+      byId("submit-btn").textContent = request.submit_label || "Send";
+      byId("placeholder")?.remove();
+      setStatus("");
+      renderMath(byId("form-root"));
+    }
+
+    function clearErrors() {
+      document.querySelectorAll(".error").forEach(node => {
+        node.textContent = "";
+        node.style.display = "none";
+      });
+    }
+
+    function showFieldError(key, msg) {
+      const node = byId(`error-${key}`);
+      if (!node) return;
+      node.textContent = msg;
+      node.style.display = "block";
+    }
+
+    function valueForField(field) {
+      if (field.type === "boolean") {
+        const check = byId(`field-${field.key}`);
+        return Boolean(check?.checked);
+      }
+
+      const input = byId(`field-${field.key}`);
+      const raw = input?.value;
+      if (raw == null || raw === "") {
+        return "";
+      }
+
+      if (field.type === "integer") {
+        if (!Number.isInteger(Number(raw))) {
+          throw new Error("Must be an integer.");
+        }
+        return Number(raw);
+      }
+      if (field.type === "number") {
+        const num = Number(raw);
+        if (Number.isNaN(num)) {
+          throw new Error("Must be a number.");
+        }
+        return num;
+      }
+      return raw;
+    }
+
+    function collectValues() {
+      const request = currentPayload?.request || {};
+      const fields = Array.isArray(request.fields) ? request.fields : [];
+      const values = {};
+      let hasError = false;
+      clearErrors();
+
+      fields.forEach(field => {
+        try {
+          const value = valueForField(field);
+          if ((value === "" || value == null) && field.required && field.type !== "boolean") {
+            hasError = true;
+            showFieldError(field.key, "This field is required.");
+            return;
+          }
+          values[field.key] = value;
+        } catch (err) {
+          hasError = true;
+          showFieldError(field.key, err.message || "Invalid value.");
+        }
+      });
+
+      if (hasError) {
+        throw new Error("Please fix highlighted fields.");
+      }
+      return values;
+    }
+
+    async function submitValues() {
+      if (!currentPayload || currentState !== "open" || sending) return;
+      sending = true;
+      byId("submit-btn").disabled = true;
+      clearErrors();
+      setStatus("Validating…");
+
+      try {
+        const values = collectValues();
+        let text = "";
+        let usedServerValidation = false;
+
+        try {
+          const result = await app.callServerTool({
+            name: "Submit_Data_Entry",
+            arguments: {
+              submission: {
+                form_id: currentPayload.request.form_id,
+                values,
+                request: currentPayload.request,
+              },
+            },
+          });
+
+          if (result?.isError) {
+            const detail = textFromToolContent(result.content);
+            throw new Error(detail || "Submission rejected by server.");
+          }
+
+          text = textFromToolContent(result.content) || JSON.stringify({
+            kind: "data_entry_submission",
+            form_id: currentPayload.request.form_id,
+            title: currentPayload.request.title,
+            data: values,
+          });
+          usedServerValidation = true;
+        } catch (serverError) {
+          // Fallback for hosts/runtimes that reject app-initiated tool callbacks.
+          text = JSON.stringify({
+            kind: "data_entry_submission",
+            form_id: currentPayload.request.form_id,
+            title: currentPayload.request.title,
+            data: values,
+            note: `Server callback unavailable: ${serverError?.message || "unknown error"}`,
+          });
+        }
+
+        let chatText = text;
+        try {
+          chatText = buildChatMessage(JSON.parse(text));
+        } catch {
+          // If parsing fails, keep original text payload.
+        }
+
+        await app.sendMessage({
+          role: "user",
+          content: [{ type: "text", text: chatText }],
+        });
+
+        if (usedServerValidation) {
+          setStatus("Submitted. The assistant can continue now.");
+        } else {
+          setStatus("Submitted without server-side validation.", false);
+        }
+      } catch (error) {
+        setStatus(error?.message || "Submission failed.", true);
+      } finally {
+        sending = false;
+        byId("submit-btn").disabled = false;
+      }
+    }
+
+    app.ontoolresult = ({ content }) => {
+      const text = content?.find(part => part.type === "text");
+      if (!text) return;
+      try {
+        const payload = JSON.parse(text.text);
+        const request = payload?.request || {};
+        const title = payload?._meta?.title || request.title || "Data Entry";
+        byId("toolbar").style.display = "flex";
+        byId("title").textContent = String(title).toUpperCase();
+
+        if (payload?.state === "completed" || payload?.state === "outdated") {
+          renderTerminalState(payload);
+          return;
+        }
+        renderForm(payload);
+      } catch (error) {
+        byId("placeholder").textContent = `Error: ${error.message}`;
+      }
+    };
+
+    byId("submit-btn").addEventListener("click", submitValues);
+    await app.connect();
+  </script>
+</body>
+
+</html>

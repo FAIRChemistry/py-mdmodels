@@ -15,6 +15,7 @@ from .runtime import build_runtime_tool_metadata
 from .tools.aggregate import register_aggregate_tool
 from .tools.annotate import register_annotate_tool
 from .tools.download import register_download_tool
+from .tools.form import register_data_entry_tool
 from .tools.plot import register_plot_tool
 from .tools.relationships import register_relationships_tool
 from .tools.schema import register_schema_tool
@@ -110,6 +111,7 @@ def create_sql_mcp_tools(
         db_models=db_models,
         available_tables=runtime.available_tables,
     )
+    register_data_entry_tool(app=app)
     register_plot_tool(
         app=app,
         db_models=db_models,
