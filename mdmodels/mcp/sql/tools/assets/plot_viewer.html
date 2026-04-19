@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="color-scheme" content="light dark">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+      color: #1a1a17;
+      font-size: 12px;
+    }
+
+    #toolbar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px 4px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    #title-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #9b9b93;
+    }
+
+    #controls,
+    #plot-controls {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 12px 10px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    #plot-controls {
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-bottom: none;
+    }
+
+    .controls-block {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      padding: 0;
+      justify-content: flex-start;
+    }
+
+    #plot-controls .controls-block {
+      justify-content: center;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      width: 170px;
+    }
+
+    .ctrl-group label {
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #9b9b93;
+    }
+
+    select {
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: rgba(0, 0, 0, 0.03);
+      color: inherit;
+      cursor: pointer;
+      width: 100%;
+      min-width: 110px;
+      min-height: 30px;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: rgba(0, 0, 0, 0.25);
+    }
+
+    #chart {
+      width: 100%;
+      height: 340px;
+    }
+
+    #placeholder {
+      padding: 46px 14px;
+      text-align: center;
+      color: rgba(0, 0, 0, 0.25);
+      font-size: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        color: #ccccc4;
+      }
+
+      #toolbar {
+        border-bottom-color: rgba(255, 255, 255, 0.05);
+      }
+
+      #controls,
+      #plot-controls {
+        border-bottom-color: rgba(255, 255, 255, 0.05);
+      }
+
+      #plot-controls {
+        border-top-color: rgba(255, 255, 255, 0.05);
+        border-bottom: none;
+      }
+
+      #title-label {
+        color: #6b7280;
+      }
+
+      .ctrl-group label {
+        color: #6b7280;
+      }
+
+      select {
+        border-color: rgba(255, 255, 255, 0.12);
+        background-color: rgba(255, 255, 255, 0.04);
+        color: #ccccc4;
+      }
+
+      select:focus {
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+
+      #placeholder {
+        color: rgba(255, 255, 255, 0.2);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="toolbar">
+    <span id="title-label">Plot</span>
+  </div>
+
+  <div id="controls">
+    <div class="controls-block">
+      <div class="ctrl-group" id="grp-split-by" style="display:none;">
+        <label id="lbl-split-by">Split by</label>
+        <select id="sel-split-by"></select>
+      </div>
+      <div class="ctrl-group">
+        <label>Type</label>
+        <select id="sel-type">
+          <option value="scatter">Scatter</option>
+          <option value="line">Line</option>
+          <option value="bar">Bar</option>
+          <option value="boxplot">Boxplot</option>
+          <option value="histogram">Histogram</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div id="chart">
+    <div id="placeholder">Waiting for data\u2026</div>
+  </div>
+
+  <div id="plot-controls">
+    <div class="controls-block">
+      <div class="ctrl-group">
+        <label>X axis</label>
+        <select id="sel-x"></select>
+      </div>
+      <div class="ctrl-group" id="grp-y">
+        <label>Y axis</label>
+        <select id="sel-y"></select>
+      </div>
+      <div class="ctrl-group">
+        <label>Color / Group</label>
+        <select id="sel-color"></select>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { App } from "https://unpkg.com/@modelcontextprotocol/ext-apps@0.4.0/app-with-deps";
+
+    const app = new App({ name: "Plot Viewer", version: "1.0.0" });
+    let state = null;
+    let chart = null;
+    let lastYSelection = "";
+    let dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
+      dark = e.matches;
+      if (state) render();
+    });
+
+    const PALETTE = [
+      "#7b9cba", "#9bba7b", "#ba9b7b", "#a07bba",
+      "#7bbab4", "#bab07b", "#ba7b8e", "#7b8fba",
+    ];
+    const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+    const fg = () => dark ? "#ccccc4" : "#1a1a17";
+    const sub = () => dark ? "#6b7280" : "#9b9b93";
+    const grid = () => dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+    const axline = () => dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
+    const ttBg = () => dark ? "#1e1e1e" : "#ffffff";
+
+    function getColumn(name) {
+      return state.columns.find(c => c.name === name);
+    }
+
+    function controlsForType(type) {
+      const isNumeric = c => c.dtype === "numeric";
+      const isCategorical = c => c.dtype === "string" || c.dtype === "boolean";
+
+      if (type === "histogram") {
+        return {
+          showY: false,
+          yRequired: false,
+          xAllowed: isNumeric,
+          yAllowed: () => false,
+          colorAllowed: isCategorical,
+        };
+      }
+
+      if (type === "bar") {
+        return {
+          showY: true,
+          yRequired: false,
+          xAllowed: isCategorical,
+          yAllowed: isNumeric,
+          colorAllowed: isCategorical,
+        };
+      }
+
+      if (type === "boxplot") {
+        return {
+          showY: true,
+          yRequired: true,
+          xAllowed: isCategorical,
+          yAllowed: isNumeric,
+          colorAllowed: isCategorical,
+        };
+      }
+
+      return {
+        showY: true,
+        yRequired: true,
+        xAllowed: isNumeric,
+        yAllowed: isNumeric,
+        colorAllowed: isCategorical,
+      };
+    }
+
+    function optionList(allowedFn) {
+      return state.columns.map(col => ({
+        value: col.name,
+        label: col.name,
+        disabled: !allowedFn(col),
+      }));
+    }
+
+    function fillSelect(id, options, selected, { allowNone = true } = {}) {
+      const el = document.getElementById(id);
+      el.innerHTML = "";
+      const enabledValues = [];
+
+      if (allowNone) {
+        const none = document.createElement("option");
+        none.value = "";
+        none.textContent = "\u2014 none \u2014";
+        el.appendChild(none);
+      }
+
+      options.forEach(item => {
+        const normalized = typeof item === "string"
+          ? { value: item, label: item, disabled: false }
+          : item;
+        const opt = document.createElement("option");
+        opt.value = normalized.value;
+        opt.textContent = normalized.label;
+        opt.disabled = !!normalized.disabled;
+        if (!opt.disabled) {
+          enabledValues.push(opt.value);
+        }
+        el.appendChild(opt);
+      });
+
+      if (selected && enabledValues.includes(selected)) {
+        el.value = selected;
+      } else if (!allowNone && enabledValues.length > 0) {
+        el.value = enabledValues[0];
+      } else {
+        el.value = "";
+      }
+    }
+
+    function updateYVisibility() {
+      const type = document.getElementById("sel-type").value;
+      const { showY } = controlsForType(type);
+      document.getElementById("grp-y").style.display = showY ? "" : "none";
+    }
+
+    function applyTypeControls({
+      preserveX = true,
+      preserveY = true,
+      preserveColor = true,
+      resetY = false,
+    } = {}) {
+      const type = document.getElementById("sel-type").value;
+      const rules = controlsForType(type);
+
+      const curX = preserveX ? document.getElementById("sel-x").value : "";
+      const curY = resetY ? "" : (preserveY ? document.getElementById("sel-y").value : "");
+      const curColor = preserveColor ? document.getElementById("sel-color").value : "";
+
+      fillSelect("sel-x", optionList(rules.xAllowed), curX, { allowNone: false });
+      fillSelect("sel-y", optionList(rules.yAllowed), curY, { allowNone: !rules.yRequired });
+      fillSelect("sel-color", optionList(rules.colorAllowed), curColor, { allowNone: true });
+
+      if (!rules.showY) {
+        document.getElementById("sel-y").value = "";
+      }
+      updateYVisibility();
+    }
+
+    function populateControls() {
+      const s = state.suggested || {};
+      const allowedTypes = ["scatter", "line", "bar", "boxplot", "histogram"];
+      const type = allowedTypes.includes(s.plot_type) ? s.plot_type : "scatter";
+      document.getElementById("sel-type").value = type;
+
+      applyTypeControls({ preserveX: false, preserveY: false, preserveColor: false });
+
+      const xEl = document.getElementById("sel-x");
+      const yEl = document.getElementById("sel-y");
+      const colorEl = document.getElementById("sel-color");
+      const rules = controlsForType(type);
+
+      if (s.x && rules.xAllowed(getColumn(s.x) || {})) {
+        xEl.value = s.x;
+      }
+      if (s.y && rules.yAllowed(getColumn(s.y) || {})) {
+        yEl.value = s.y;
+      }
+      if (s.color && rules.colorAllowed(getColumn(s.color) || {})) {
+        colorEl.value = s.color;
+      }
+      if (!rules.showY) {
+        yEl.value = "";
+      }
+      lastYSelection = yEl.value || lastYSelection;
+      updateSplitByControl();
+    }
+
+    function baseAxis() {
+      return {
+        axisLine: { lineStyle: { color: axline() } },
+        axisTick: { lineStyle: { color: axline() } },
+        splitLine: { lineStyle: { color: grid(), type: "dashed" } },
+        axisLabel: { color: sub(), fontSize: 11, fontFamily: FONT_FAMILY },
+        nameTextStyle: { color: sub(), fontSize: 11, fontFamily: FONT_FAMILY },
+      };
+    }
+
+    function getSplitByConfig() {
+      return (
+        state?.controls?.split_by
+        || state?.suggested?.split_by
+        || state?.controls?.discriminator
+        || state?.suggested?.discriminator
+        || null
+      );
+    }
+
+    function getSplitByColumn() {
+      return getSplitByConfig()?.column || null;
+    }
+
+    function getSplitOptions() {
+      const splitByConfig = getSplitByConfig();
+      const splitByColumn = splitByConfig?.column || null;
+      const splitByDisplayColumn = splitByConfig?.display_column || null;
+      if (!splitByColumn) {
+        return [];
+      }
+
+      const optionsByValue = new Map();
+      (state.data || []).forEach(row => {
+        const rawValue = row?.[splitByColumn];
+        if (rawValue == null) {
+          return;
+        }
+        const value = String(rawValue);
+        let label = value;
+        if (splitByDisplayColumn) {
+          const displayRaw = row?.[splitByDisplayColumn];
+          if (displayRaw != null && String(displayRaw).length > 0) {
+            label = String(displayRaw);
+          }
+        }
+        if (!optionsByValue.has(value)) {
+          optionsByValue.set(value, label);
+        }
+      });
+      return Array.from(optionsByValue.entries()).map(([value, label]) => ({
+        value,
+        label,
+      }));
+    }
+
+    function updateSplitByControl() {
+      const groupEl = document.getElementById("grp-split-by");
+      const selectEl = document.getElementById("sel-split-by");
+      const labelEl = document.getElementById("lbl-split-by");
+      const splitByConfig = getSplitByConfig();
+      const splitByColumn = splitByConfig?.column || null;
+
+      if (!splitByColumn) {
+        groupEl.style.display = "none";
+        selectEl.innerHTML = "";
+        selectEl.value = "";
+        labelEl.textContent = "Split by";
+        return;
+      }
+
+      const fallbackTable = splitByColumn.includes(".")
+        ? splitByColumn.split(".")[0]
+        : splitByColumn;
+      labelEl.textContent = splitByConfig?.table || splitByConfig?.label || fallbackTable;
+
+      const options = getSplitOptions();
+
+      if (options.length === 0) {
+        groupEl.style.display = "none";
+        selectEl.innerHTML = "";
+        selectEl.value = "";
+        return;
+      }
+
+      const currentValue = selectEl.value;
+      const selectedValue = options.some(option => option.value === currentValue)
+        ? currentValue
+        : options[0].value;
+      fillSelect("sel-split-by", options, selectedValue, { allowNone: false });
+      groupEl.style.display = "";
+    }
+
+    function buildOption(data, xCol, yCol, colorCol, plotType) {
+      const s = state.suggested;
+      const xLabel = s.x_label || xCol || "";
+      const yLabel = s.y_label || yCol || ((plotType === "histogram" || (plotType === "bar" && !yCol)) ? "count" : "value");
+      const title = s.title || "";
+      const textStyle = { color: fg(), fontFamily: FONT_FAMILY };
+
+      const groups = {};
+      data.forEach(row => {
+        const key = colorCol ? String(row[colorCol] ?? "null") : "__all__";
+        (groups[key] = groups[key] || []).push(row);
+      });
+
+      const titleOpt = title
+        ? {
+          text: title,
+          textStyle: {
+            color: sub(),
+            fontSize: 13,
+            fontWeight: 500,
+            fontFamily: FONT_FAMILY,
+          },
+          left: "center",
+        }
+        : undefined;
+
+      const tooltip = {
+        backgroundColor: ttBg(),
+        borderColor: axline(),
+        textStyle: { color: fg(), fontSize: 12, fontFamily: FONT_FAMILY },
+      };
+
+      if (plotType === "histogram") {
+        const vals = data
+          .map(r => Number(r[xCol]))
+          .filter(v => !Number.isNaN(v));
+        if (vals.length === 0) {
+          return {
+            backgroundColor: "transparent",
+            textStyle,
+            title: titleOpt,
+            tooltip: { ...tooltip, trigger: "axis" },
+            grid: { left: 55, right: 20, top: title ? 44 : 16, bottom: 50 },
+            xAxis: {
+              ...baseAxis(), type: "category", data: [],
+              name: xLabel, nameLocation: "middle", nameGap: 32
+            },
+            yAxis: {
+              ...baseAxis(), type: "value",
+              name: "count", nameLocation: "middle", nameGap: 40
+            },
+            series: [{ type: "bar", data: [] }],
+          };
+        }
+        const min = Math.min(...vals);
+        const max = Math.max(...vals);
+        const bins = Math.max(5, Math.min(30, Math.round(Math.sqrt(vals.length))));
+        const step = (max - min) / bins || 1;
+        const counts = new Array(bins).fill(0);
+        vals.forEach(v => {
+          const i = Math.min(bins - 1, Math.floor((v - min) / step));
+          counts[i]++;
+        });
+        const labels = counts.map((_, i) => (min + (i + 0.5) * step).toFixed(3));
+        return {
+          backgroundColor: "transparent",
+          textStyle,
+          title: titleOpt,
+          tooltip: { ...tooltip, trigger: "axis" },
+          grid: { left: 55, right: 20, top: title ? 44 : 16, bottom: 50 },
+          xAxis: {
+            ...baseAxis(), type: "category", data: labels,
+            name: xLabel, nameLocation: "middle", nameGap: 32
+          },
+          yAxis: {
+            ...baseAxis(), type: "value",
+            name: "count", nameLocation: "middle", nameGap: 40
+          },
+          series: [{
+            type: "bar", data: counts, barCategoryGap: "4%",
+            itemStyle: {
+              color: PALETTE[0], opacity: 0.78,
+              borderColor: axline(), borderWidth: 0.5
+            },
+          }],
+        };
+      }
+
+      if (plotType === "bar") {
+        const countMode = !yCol;
+        const allX = [...new Set(
+          data.map(r => r[xCol]).filter(v => v != null).map(v => String(v))
+        )];
+
+        const series = Object.entries(groups).map(([grp, rows], i) => {
+          const agg = {};
+          rows.forEach(r => {
+            const x = r[xCol];
+            if (x == null) {
+              return;
+            }
+            const key = String(x);
+            if (!agg[key]) {
+              agg[key] = { sum: 0, count: 0 };
+            }
+
+            if (countMode) {
+              agg[key].sum += 1;
+              agg[key].count += 1;
+              return;
+            }
+
+            const y = Number(r[yCol]);
+            if (Number.isNaN(y)) {
+              return;
+            }
+            agg[key].sum += y;
+            agg[key].count += 1;
+          });
+
+          const name = grp === "__all__" ? (state._meta?.table || "data") : grp;
+          return {
+            type: "bar", name,
+            data: allX.map(x => {
+              const bucket = agg[x];
+              if (!bucket) {
+                return null;
+              }
+              return countMode ? bucket.count : bucket.sum / bucket.count;
+            }),
+            itemStyle: {
+              color: PALETTE[i % PALETTE.length], opacity: 0.8,
+              borderColor: axline(), borderWidth: 0.5
+            },
+            barMaxWidth: 60,
+          };
+        });
+
+        return {
+          backgroundColor: "transparent",
+          textStyle,
+          title: titleOpt,
+          tooltip: { ...tooltip, trigger: "axis" },
+          legend: series.length > 1
+            ? { textStyle: { color: sub(), fontSize: 11, fontFamily: FONT_FAMILY }, top: title ? 36 : 8 }
+            : undefined,
+          grid: {
+            left: 55, right: 20,
+            top: title ? 44 : series.length > 1 ? 36 : 16,
+            bottom: 60
+          },
+          xAxis: {
+            ...baseAxis(), type: "category", data: allX,
+            name: xLabel, nameLocation: "middle", nameGap: 40,
+            axisLabel: {
+              color: sub(), fontSize: 11,
+              fontFamily: FONT_FAMILY,
+              rotate: allX.length > 6 ? 30 : 0
+            }
+          },
+          yAxis: {
+            ...baseAxis(), type: "value",
+            name: yLabel, nameLocation: "middle", nameGap: 40
+          },
+          series,
+        };
+      }
+
+      if (plotType === "boxplot") {
+        const byCategory = {};
+        data.forEach(r => {
+          const x = r[xCol];
+          const y = Number(r[yCol]);
+          if (x == null || Number.isNaN(y)) {
+            return;
+          }
+          const key = String(x);
+          (byCategory[key] = byCategory[key] || []).push(y);
+        });
+
+        const categories = Object.keys(byCategory);
+        const quantile = (sorted, q) => {
+          if (sorted.length === 0) {
+            return null;
+          }
+          const pos = (sorted.length - 1) * q;
+          const base = Math.floor(pos);
+          const rest = pos - base;
+          if (sorted[base + 1] !== undefined) {
+            return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+          }
+          return sorted[base];
+        };
+
+        const boxData = categories.map(cat => {
+          const sorted = [...byCategory[cat]].sort((a, b) => a - b);
+          return [
+            sorted[0],
+            quantile(sorted, 0.25),
+            quantile(sorted, 0.5),
+            quantile(sorted, 0.75),
+            sorted[sorted.length - 1],
+          ];
+        });
+
+        return {
+          backgroundColor: "transparent",
+          textStyle,
+          title: titleOpt,
+          tooltip: {
+            ...tooltip,
+            trigger: "item",
+            formatter: p => {
+              const [min, q1, median, q3, max] = p.value || [];
+              return `${p.name}<br/>min: ${min}<br/>q1: ${q1}<br/>median: ${median}<br/>q3: ${q3}<br/>max: ${max}`;
+            },
+          },
+          grid: { left: 55, right: 20, top: title ? 44 : 16, bottom: 60 },
+          xAxis: {
+            ...baseAxis(),
+            type: "category",
+            data: categories,
+            name: xLabel,
+            nameLocation: "middle",
+            nameGap: 40,
+            axisLabel: {
+              color: sub(),
+              fontSize: 11,
+              fontFamily: FONT_FAMILY,
+              rotate: categories.length > 6 ? 30 : 0,
+            },
+          },
+          yAxis: {
+            ...baseAxis(),
+            type: "value",
+            name: yLabel,
+            nameLocation: "middle",
+            nameGap: 40,
+          },
+          series: [{
+            type: "boxplot",
+            data: boxData,
+            itemStyle: {
+              color: PALETTE[0],
+              opacity: 0.75,
+              borderColor: axline(),
+              borderWidth: 1,
+            },
+            emphasis: {
+              itemStyle: {
+                color: PALETTE[1],
+              },
+            },
+          }],
+        };
+      }
+
+      const series = Object.entries(groups).map(([grp, rows], i) => {
+        const name = grp === "__all__" ? (state._meta?.table || "data") : grp;
+        const color = PALETTE[i % PALETTE.length];
+        const pts = rows
+          .map(r => [Number(r[xCol]), Number(r[yCol])])
+          .filter(p => !Number.isNaN(p[0]) && !Number.isNaN(p[1]));
+
+        if (plotType === "line") {
+          pts.sort((a, b) => a[0] - b[0]);
+          return {
+            type: "line", name, data: pts, smooth: false,
+            symbol: "circle", symbolSize: 5,
+            lineStyle: { color, width: 2 },
+            itemStyle: { color },
+          };
+        }
+        return {
+          type: "scatter", name, data: pts, symbolSize: 7,
+          itemStyle: {
+            color, opacity: 0.78,
+            borderColor: axline(), borderWidth: 0.5
+          },
+        };
+      });
+
+      return {
+        backgroundColor: "transparent",
+        textStyle,
+        title: titleOpt,
+        tooltip: {
+          ...tooltip, trigger: "item",
+          formatter: p => `${p.seriesName}<br/>${xLabel}: ${p.value[0]}<br/>${yLabel}: ${p.value[1]}`,
+        },
+        legend: series.length > 1
+          ? { textStyle: { color: sub(), fontSize: 11, fontFamily: FONT_FAMILY }, top: title ? 36 : 8 }
+          : undefined,
+        grid: {
+          left: 55, right: 20,
+          top: title ? 44 : series.length > 1 ? 36 : 16,
+          bottom: 50
+        },
+        xAxis: {
+          ...baseAxis(), type: "value",
+          name: xLabel, nameLocation: "middle", nameGap: 32
+        },
+        yAxis: {
+          ...baseAxis(), type: "value",
+          name: yLabel, nameLocation: "middle", nameGap: 40
+        },
+        series,
+        dataZoom: [
+          { type: "inside", xAxisIndex: 0, filterMode: "none" },
+          { type: "inside", yAxisIndex: 0, filterMode: "none" },
+        ],
+      };
+    }
+
+    function renderSubplots(el, xCol, yCol, colorCol, plotType, splitByColumn) {
+      const splitOptions = getSplitOptions();
+      if (!splitByColumn || splitOptions.length === 0) {
+        return false;
+      }
+
+      const panelData = splitOptions.map(option => ({
+        value: option.value,
+        label: option.label,
+        data: (state.data || []).filter(
+          row => String(row?.[splitByColumn] ?? "") === option.value
+        ),
+      })).filter(panel => panel.data.length > 0);
+
+      if (panelData.length === 0) {
+        return false;
+      }
+
+      const topStart = 24;
+      const panelHeight = 128;
+      const panelGap = 34;
+      const bottomPad = 40;
+      const totalHeight = topStart + panelData.length * panelHeight + (panelData.length - 1) * panelGap + bottomPad;
+      el.style.height = `${Math.max(340, totalHeight)}px`;
+
+      const grids = [];
+      const xAxes = [];
+      const yAxes = [];
+      const series = [];
+      const titles = [];
+
+      panelData.forEach((panel, idx) => {
+        const panelOption = buildOption(panel.data, xCol, yCol, colorCol, plotType);
+        const panelSeries = Array.isArray(panelOption.series) ? panelOption.series : [panelOption.series];
+        const panelXAxis = Array.isArray(panelOption.xAxis) ? panelOption.xAxis[0] : panelOption.xAxis;
+        const panelYAxis = Array.isArray(panelOption.yAxis) ? panelOption.yAxis[0] : panelOption.yAxis;
+
+        const top = topStart + idx * (panelHeight + panelGap);
+        grids.push({
+          left: 55,
+          right: 20,
+          top,
+          height: panelHeight,
+        });
+
+        xAxes.push({
+          ...(panelXAxis || {}),
+          gridIndex: idx,
+          axisLabel: idx === panelData.length - 1 ? panelXAxis?.axisLabel : { show: false },
+          axisTick: idx === panelData.length - 1 ? panelXAxis?.axisTick : { show: false },
+          axisLine: idx === panelData.length - 1 ? panelXAxis?.axisLine : { show: false },
+          name: idx === panelData.length - 1 ? panelXAxis?.name : "",
+        });
+        yAxes.push({
+          ...(panelYAxis || {}),
+          gridIndex: idx,
+        });
+
+        panelSeries.forEach(item => {
+          series.push({
+            ...item,
+            xAxisIndex: idx,
+            yAxisIndex: idx,
+            animation: false,
+          });
+        });
+
+        titles.push({
+          text: panel.label,
+          left: 56,
+          top: top - 18,
+          textStyle: {
+            color: sub(),
+            fontSize: 11,
+            fontWeight: 600,
+            fontFamily: FONT_FAMILY,
+          },
+        });
+      });
+
+      if (!chart) {
+        chart = echarts.init(el, null, { renderer: "canvas", backgroundColor: "transparent" });
+        window.addEventListener("resize", () => chart.resize());
+      }
+
+      chart.setOption(
+        {
+          backgroundColor: "transparent",
+          textStyle: { color: fg(), fontFamily: FONT_FAMILY },
+          title: titles,
+          tooltip: {
+            backgroundColor: ttBg(),
+            borderColor: axline(),
+            textStyle: { color: fg(), fontSize: 12, fontFamily: FONT_FAMILY },
+            trigger: "item",
+          },
+          grid: grids,
+          xAxis: xAxes,
+          yAxis: yAxes,
+          series,
+        },
+        true
+      );
+      return true;
+    }
+
+    function render() {
+      const xCol = document.getElementById("sel-x").value;
+      const yCol = document.getElementById("sel-y").value || null;
+      const colorCol = document.getElementById("sel-color").value || null;
+      const splitByValue = document.getElementById("sel-split-by").value || null;
+      const splitByColumn = getSplitByColumn();
+      const plotType = document.getElementById("sel-type").value;
+      const { yRequired } = controlsForType(plotType);
+      if (!xCol || (yRequired && !yCol)) {
+        return;
+      }
+
+      const filteredData =
+        splitByColumn && splitByValue
+          ? (state.data || []).filter(
+            row => String(row?.[splitByColumn] ?? "") === splitByValue
+          )
+          : state.data;
+
+      const el = document.getElementById("chart");
+      if (!chart) {
+        chart = echarts.init(el, null, { renderer: "canvas", backgroundColor: "transparent" });
+        window.addEventListener("resize", () => chart.resize());
+      }
+
+      const useSubplots = Boolean(state?._meta?.subplots && splitByColumn);
+      if (useSubplots && renderSubplots(el, xCol, yCol, colorCol, plotType, splitByColumn)) {
+        return;
+      }
+
+      el.style.height = "340px";
+      chart.setOption(buildOption(filteredData, xCol, yCol, colorCol, plotType), true);
+    }
+
+    app.ontoolresult = ({ content }) => {
+      const text = content?.find(c => c.type === "text");
+      if (!text) return;
+      try {
+        state = JSON.parse(text.text);
+        const meta = state._meta || {};
+        document.getElementById("title-label").textContent =
+          (meta.table || "Plot").toUpperCase();
+        document.getElementById("toolbar").style.display = "flex";
+        document.getElementById("controls").style.display = "flex";
+        document.getElementById("plot-controls").style.display = "flex";
+        document.getElementById("placeholder")?.remove();
+        populateControls();
+        render();
+      } catch (e) {
+        document.getElementById("placeholder").textContent = "Error: " + e.message;
+      }
+    };
+
+    await app.connect();
+
+    ["sel-type", "sel-x", "sel-y", "sel-color", "sel-split-by"].forEach(id => {
+      document.getElementById(id).addEventListener("change", () => {
+        if (id === "sel-y") {
+          const yValue = document.getElementById("sel-y").value;
+          if (yValue) {
+            lastYSelection = yValue;
+          }
+        }
+
+        if (id === "sel-type") {
+          const type = document.getElementById("sel-type").value;
+          const previousY = document.getElementById("sel-y").value;
+          if (previousY) {
+            lastYSelection = previousY;
+          }
+          applyTypeControls({
+            preserveX: true,
+            preserveY: true,
+            preserveColor: true,
+            resetY: false,
+          });
+
+          if (type === "histogram") {
+            // Histogram does not use a y axis.
+            document.getElementById("sel-y").value = "";
+          } else {
+            const yEl = document.getElementById("sel-y");
+            const hasOption = Array.from(yEl.options).some(
+              option => option.value === lastYSelection && !option.disabled
+            );
+            if (!yEl.value && hasOption) {
+              yEl.value = lastYSelection;
+            }
+          }
+
+          if (chart) {
+            chart.clear();
+          }
+        }
+        render();
+      });
+    });
+  </script>
+</body>
+
+</html>
