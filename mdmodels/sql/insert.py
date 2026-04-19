@@ -117,6 +117,10 @@ def _to_sqlmodel(
             return existing
 
     for key, value in data:
+        if key == "row_pk":
+            # Technical upsert routing key, not a persisted domain column.
+            continue
+
         conn = connections.get(key)
         if conn:
             _process_connected_attr(
@@ -131,6 +135,9 @@ def _to_sqlmodel(
                 created_rows=created_rows,
             )
         else:
+            if key not in table.model_fields:
+                # Attribute exists in the domain model but is not persisted in SQL.
+                continue
             if issubclass(type(value), Enum):
                 # Handle enum values
                 primitives[key] = value.value
