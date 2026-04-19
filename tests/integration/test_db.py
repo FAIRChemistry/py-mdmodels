@@ -141,3 +141,103 @@ class TestDatabase:
             assert single_complex.get("id") is not None
             assert isinstance(nested_array, list)
             assert len(nested_array) == 1
+
+    def test_database_upsert_with_row_pk(
+        self,
+        integration_db: tuple[
+            sql.DatabaseConnector, Library[SQLBase], Library[DataModel]
+        ],
+    ):
+        """
+        Test top-level upsert using row_pk with flat payloads and ChildRefs.
+
+        Verifies:
+        - existing row is updated (not duplicated)
+        - scalar fields are overwritten
+        - array relationships append+dedupe
+        """
+        db, sql_models, library = integration_db
+
+        base_obj = library.Test(
+            name="test",
+            float_field=1.0,
+            string_field="before-upsert",
+            boolean_field=True,
+            single_complex_field=library.Nested(
+                value="nested-1",
+                other_ref="test",
+            ),
+            nested_array_field=[
+                library.Nested(
+                    value="nested-2",
+                    other_ref="test",
+                )
+            ],
+            some_other_field=library.SomeOther(name="test"),
+        )
+
+        UpsertTest = reconstruct_model(library.Test, flat=True, include_row_pk=True)
+
+        with db as session:
+            initial_rows = sql.insert_nested(base_obj, library, session, sql_models)
+            session.add_all(initial_rows)
+            session.flush()
+
+            nested_rows = session.exec(sql.select(sql_models.Nested)).all()
+            assert len(nested_rows) == 2
+
+            append_target = library.Nested(
+                value="nested-3",
+                other_ref="test",
+            )
+            extra_nested_rows = sql.insert_nested(append_target, library, session, sql_models)
+            session.add_all(extra_nested_rows)
+            session.flush()
+
+            all_nested = session.exec(sql.select(sql_models.Nested)).all()
+            assert len(all_nested) == 3
+            nested_ids_by_value = {
+                getattr(row, "value"): getattr(row, "id") for row in all_nested
+            }
+
+            first_nested_id = nested_ids_by_value["nested-1"]
+            second_nested_id = nested_ids_by_value["nested-2"]
+            third_nested_id = nested_ids_by_value["nested-3"]
+
+            upsert_obj = UpsertTest(
+                row_pk="test",
+                name="test",
+                float_field=2.0,
+                string_field="after-upsert",
+                boolean_field=False,
+                single_complex_field=ChildRef(row_pk=first_nested_id),
+                nested_array_field=[
+                    ChildRef(row_pk=second_nested_id),
+                    ChildRef(row_pk=third_nested_id),
+                ],
+                some_other_field=ChildRef(row_pk="test"),
+            )
+
+            upsert_rows = sql.upsert_nested(
+                cast(DataModel, upsert_obj),
+                library,
+                session,
+                sql_models,
+            )
+            session.add_all(upsert_rows)
+
+            session.commit()
+
+            all_tests = session.exec(sql.select(sql_models.Test)).all()
+            assert len(all_tests) == 1
+
+            row = all_tests[0].to_dict()
+            assert row["name"] == "test"
+            assert row["float_field"] == 2.0
+            assert row["string_field"] == "after-upsert"
+            assert row["boolean_field"] is False
+
+            nested_ids = [entry["id"] for entry in row["nested_array_field"]]
+            assert len(nested_ids) == 2
+            assert second_nested_id in nested_ids
+            assert third_nested_id in nested_ids
