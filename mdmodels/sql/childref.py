@@ -15,12 +15,14 @@ from mdmodels.utils import extract_dtype
 
 
 class ChildRef(BaseXmlModel, tag="ChildRef"):
-    """Reference an existing row by ID instead of inlining the full object."""
-
     row_pk: Union[str, int] = element(tag="row_pk")
 
 
-def reconstruct_model(model: Type[BaseModel], flat: bool = False) -> Type[BaseModel]:
+def reconstruct_model(
+    model: Type[BaseModel],
+    flat: bool = False,
+    include_row_pk: bool = False,
+) -> Type[BaseModel]:
     """
     Reconstruct a Pydantic model with child reference support.
 
@@ -68,6 +70,19 @@ def reconstruct_model(model: Type[BaseModel], flat: bool = False) -> Type[BaseMo
             annotation = field.annotation
 
         attrs[name] = (annotation, element(tag=name, **params))
+
+    if include_row_pk:
+        attrs["row_pk"] = (
+            str | int | None,
+            element(
+                tag="row_pk",
+                default=None,
+                description=(
+                    "Optional target primary key for upsert operations. "
+                    "If provided, the row with this primary key is updated."
+                ),
+            ),
+        )
 
     return create_model(
         model.__name__,
