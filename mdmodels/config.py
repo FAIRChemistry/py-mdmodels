@@ -17,6 +17,7 @@ RestOperation = Literal[
 ]
 SQLDatabaseType = Literal[
     "postgres",
+    "postgresql",
     "pgvector",
     "sqlite",
 ]

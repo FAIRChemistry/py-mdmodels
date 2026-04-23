@@ -34,7 +34,9 @@ def load_app_config(config_path: Path) -> AppConfig:
     app_config = AppConfig.from_toml(resolved_config)
 
     if app_config.model.repo is None and not app_config.model.path.is_absolute():
-        app_config.model.path = (resolved_config.parent / app_config.model.path).resolve()
+        app_config.model.path = (
+            resolved_config.parent / app_config.model.path
+        ).resolve()
 
     return app_config
 
@@ -50,6 +52,8 @@ def build_database_url(config_path: Path) -> str:
         return str(URL.create("sqlite", database=database))
 
     if db_type == "postgres":
+        drivername = "postgresql+psycopg2"
+    elif db_type == "postgresql":
         drivername = "postgresql+psycopg2"
     elif db_type == "pgvector":
         drivername = "postgresql+psycopg2"

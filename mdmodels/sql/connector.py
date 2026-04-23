@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 DatabaseTypeLiteral = Literal[
     "postgresql",
+    "postgres",
     "pgvector",
     "mysql",
     "sqlite",
@@ -89,6 +90,8 @@ class DatabaseType(Enum):
         """
         match db_type:
             case "postgresql":
+                return cls.POSTGRESQL
+            case "postgres":
                 return cls.POSTGRESQL
             case "mysql":
                 return cls.MYSQL
