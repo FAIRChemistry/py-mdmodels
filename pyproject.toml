@@ -1,6 +1,6 @@
 [project]
 name = "mdmodels"
-version = "0.3.0"
+version = "0.3.1"
 description = "Python package for the MDModels Rust crate"
 authors = [{ name = "Jan Range", email = "range.jan@web.de" }]
 requires-python = ">=3.11"

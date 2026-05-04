@@ -24,7 +24,7 @@ import nest_asyncio
 from .datamodel import DataModel
 from .templates import Templates
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 
 def patch_nest_asyncio():
