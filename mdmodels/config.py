@@ -24,6 +24,7 @@ SQLDatabaseType = Literal[
 EmbeddingProvider = Literal[
     "openai",
     "huggingface",
+    "fastembed",
 ]
 AuthMethod = Literal["oidc"]
 
@@ -64,6 +65,14 @@ class HuggingFaceEmbeddingConfig(BaseModel):
     device: Optional[str] = None
     batch_size: int = 32
     normalize_embeddings: bool = True
+    trust_remote_code: bool = False
+
+
+class FastembedEmbeddingConfig(BaseModel):
+    """Provider-specific FastEmbed embedding settings."""
+
+    cache_dir: Optional[str] = None
+    batch_size: Optional[int] = None
 
 
 class SQLEmbeddingConfig(BaseModel):
@@ -75,16 +84,30 @@ class SQLEmbeddingConfig(BaseModel):
     dimension: Optional[int] = None
     openai: Optional[OpenAIEmbeddingConfig] = None
     huggingface: Optional[HuggingFaceEmbeddingConfig] = None
+    fastembed: Optional[FastembedEmbeddingConfig] = None
 
     @model_validator(mode="after")
     def validate_provider_settings(self) -> "SQLEmbeddingConfig":
-        if self.provider == "openai" and self.huggingface is not None:
+        if self.provider == "openai" and (
+            self.huggingface is not None or self.fastembed is not None
+        ):
             raise ValueError(
-                "embedding.huggingface is not allowed when embedding.provider='openai'"
+                "embedding.huggingface and embedding.fastembed are not allowed "
+                "when embedding.provider='openai'"
             )
-        if self.provider == "huggingface" and self.openai is not None:
+        if self.provider == "huggingface" and (
+            self.openai is not None or self.fastembed is not None
+        ):
             raise ValueError(
-                "embedding.openai is not allowed when embedding.provider='huggingface'"
+                "embedding.openai and embedding.fastembed are not allowed "
+                "when embedding.provider='huggingface'"
+            )
+        if self.provider == "fastembed" and (
+            self.openai is not None or self.huggingface is not None
+        ):
+            raise ValueError(
+                "embedding.openai and embedding.huggingface are not allowed "
+                "when embedding.provider='fastembed'"
             )
         return self
 

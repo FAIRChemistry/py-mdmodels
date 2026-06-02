@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 from mdmodels.sql.vector import (
+    FastembedTextEmbedding,
     OpenAITextEmbedding,
     SentenceTransformerEmbedding,
     TextEmbedding,
@@ -256,6 +257,24 @@ class TableConfig(BaseModel):
                 normalize_embeddings=(
                     huggingface_cfg.normalize_embeddings if huggingface_cfg else True
                 ),
+                trust_remote_code=(
+                    huggingface_cfg.trust_remote_code if huggingface_cfg else False
+                ),
+            )
+
+            if embedding.dimension is not None and embedding.dimension != model.dimension:
+                raise ValueError(
+                    f"Configured embedding.dimension={embedding.dimension} does not "
+                    f"match model dimension={model.dimension} for '{embedding.model}'"
+                )
+            return model
+
+        if embedding.provider == "fastembed":
+            fastembed_cfg = embedding.fastembed
+            model = FastembedTextEmbedding(
+                model_name=embedding.model,
+                cache_dir=fastembed_cfg.cache_dir if fastembed_cfg else None,
+                batch_size=fastembed_cfg.batch_size if fastembed_cfg else None,
             )
 
             if embedding.dimension is not None and embedding.dimension != model.dimension:

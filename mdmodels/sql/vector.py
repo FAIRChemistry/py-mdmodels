@@ -141,6 +141,7 @@ class SentenceTransformerEmbedding(TextEmbedding):
         device: The device to run the model on (CPU, CUDA, etc.).
         batch_size: The batch size for processing multiple texts.
         normalize_embeddings: Whether to normalize the embedding vectors.
+        trust_remote_code: Whether to allow execution of remote model code.
         model: The loaded SentenceTransformer model instance.
         _dimension_cache: Cached dimension value for the model.
     """
@@ -153,6 +154,7 @@ class SentenceTransformerEmbedding(TextEmbedding):
     device: str | None = None
     batch_size: int = 32
     normalize_embeddings: bool = True
+    trust_remote_code: bool = False
     model: Any = None
     _dimension_cache: int | None = None
 
@@ -163,6 +165,7 @@ class SentenceTransformerEmbedding(TextEmbedding):
         device: str | None = None,
         batch_size: int = 32,
         normalize_embeddings: bool = True,
+        trust_remote_code: bool = False,
         **kwargs: Any,
     ) -> None:
         """Initialize the SentenceTransformer embedding model.
@@ -172,6 +175,8 @@ class SentenceTransformerEmbedding(TextEmbedding):
             device: The device to run the model on.
             batch_size: The batch size for processing.
             normalize_embeddings: Whether to normalize embeddings.
+            trust_remote_code: Whether to allow remote code execution for model
+                loading when required by the selected model.
             **kwargs: Additional keyword arguments.
 
         Raises:
@@ -188,7 +193,11 @@ class SentenceTransformerEmbedding(TextEmbedding):
                 "mdmodels[vector] extra."
             ) from exc
 
-        model = SentenceTransformer(model_name, device=device)
+        model = SentenceTransformer(
+            model_name,
+            device=device,
+            trust_remote_code=trust_remote_code,
+        )
         dimension = model.get_sentence_embedding_dimension()
         if dimension is None:
             raise ValueError(f"Model {model_name} does not have a dimension")
@@ -201,10 +210,11 @@ class SentenceTransformerEmbedding(TextEmbedding):
             device=device,  # type: ignore[arg-type]
             batch_size=batch_size,  # type: ignore[arg-type]
             normalize_embeddings=normalize_embeddings,  # type: ignore[arg-type]
+            trust_remote_code=trust_remote_code,  # type: ignore[arg-type]
             model=model,  # type: ignore[arg-type]
-            _dimension_cache=dimension,  # type: ignore[arg-type]
             **kwargs,
         )
+        self._dimension_cache = dimension
 
     def embed(self, text: str) -> EmbeddingVector:
         """Embed a single text string using SentenceTransformer.
@@ -328,13 +338,13 @@ class FastembedTextEmbedding(TextEmbedding):
             cache_dir=cache_dir,  # type: ignore[arg-type]
             batch_size=batch_size,  # type: ignore[arg-type]
             model=model,  # type: ignore[arg-type]
-            _dimension_cache=dimension,  # type: ignore[arg-type]
             **{
                 k: v
                 for k, v in kwargs.items()
                 if k not in ["model_name", "cache_dir", "batch_size"]
             },
         )
+        self._dimension_cache = dimension
 
     def _ensure_dimension(self) -> None:
         """Infer and cache the embedding dimension lazily.
