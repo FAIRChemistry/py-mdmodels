@@ -290,7 +290,7 @@ Embedding settings can be added under `[sql.tables.<TableName>.embedding]`:
 
 - `column` (`string`, required when embedding is used)
 - `model` (`string`, required)
-- `provider` (`openai | huggingface`, required)
+- `provider` (`openai | huggingface | fastembed`, required)
 - `dimension` (`int`, optional)
 
 Provider-specific subsections:
@@ -303,6 +303,11 @@ Provider-specific subsections:
 - `device` (`string`, optional)
 - `batch_size` (`int`, default `32`)
 - `normalize_embeddings` (`bool`, default `true`)
+- `trust_remote_code` (`bool`, default `false`)
+
+- `[sql.tables.<TableName>.embedding.fastembed]`
+- `cache_dir` (`string`, optional)
+- `batch_size` (`int`, optional)
 
 ## `rest` Section
 
