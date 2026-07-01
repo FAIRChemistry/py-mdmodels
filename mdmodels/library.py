@@ -328,11 +328,17 @@ class Library(DottedDict, Generic[T]):
         Returns:
             Library[SQLModel]: A library containing SQLModel classes
         """
-        from sqlmodel import SQLModel
-
+        
+        try:
+            from sqlmodel import SQLModel
+        except ImportError:
+            raise ImportError(
+                "SQLModel is not installed. Please install it with `pip install mdmodels[postgres]`."
+            )
+            
+        from .sql import generate_sqlmodel
         from mdmodels import DataModel
 
-        from .sql import generate_sqlmodel
 
         # assert self.type == "DataModel", "Library must contain DataModel instances"
 
@@ -352,6 +358,14 @@ class Library(DottedDict, Generic[T]):
         Returns:
             Library[BaseNode]: A library containing BaseNode classes
         """
+        
+        try:
+            from neomodel import BaseNode
+        except ImportError:
+            raise ImportError(
+                "NeoModel is not installed. Please install it with `pip install mdmodels[neo4j]`."
+            )
+        
         from .datamodel import DataModel
         from .graph import generate_neomodel
 
