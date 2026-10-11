@@ -4,7 +4,6 @@ from collections import deque
 from functools import lru_cache
 from typing import Any, Iterable, Literal, Type, TypedDict, get_origin
 
-from sqlalchemy.orm import RelationshipProperty
 from pydantic import BaseModel
 
 from mdmodels.utils import extract_dtype
@@ -26,6 +25,12 @@ class JoinEdge(TypedDict):
 
 
 def _is_relationship_attr(attr: Any) -> bool:
+    # SQLAlchemy is only installed with the SQL extras; without it there are no relationships.
+    try:
+        from sqlalchemy.orm import RelationshipProperty
+    except ImportError:
+        return False
+
     prop = getattr(attr, "property", None)
     return isinstance(prop, RelationshipProperty)
 

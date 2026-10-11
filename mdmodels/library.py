@@ -360,7 +360,7 @@ class Library(DottedDict, Generic[T]):
         """
         
         try:
-            from neomodel import BaseNode
+            import neomodel  # noqa: F401  (availability check)
         except ImportError:
             raise ImportError(
                 "NeoModel is not installed. Please install it with `pip install mdmodels[neo4j]`."
